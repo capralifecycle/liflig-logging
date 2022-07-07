@@ -21,7 +21,7 @@
     -->
     <kotlin.code.style>official</kotlin.code.style>
 
-    <kotlin.version>1.5.31</kotlin.version>
+    <kotlin.version>1.7.10</kotlin.version>
     <kotlinx-serialization.version>1.2.2</kotlinx-serialization.version>
   </properties>
 
