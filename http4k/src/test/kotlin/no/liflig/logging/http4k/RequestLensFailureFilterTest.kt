@@ -19,7 +19,7 @@ class RequestLensFailureFilterTest {
       BiDiLens(mockk(), mockk()) { _, req -> req },
       BiDiLens(mockk(), mockk()) { _, req -> req },
       JsonErrorResponseRenderer(Jackson),
-    )
+    ),
   )
 
   @Test
@@ -32,7 +32,7 @@ class RequestLensFailureFilterTest {
     val response = handler(Request(Method.GET, "/"))
     verifyStringSnapshot(
       "RequestLensFailureFilter-query-required.txt",
-      response.toString()
+      response.toString(),
     )
   }
 
@@ -46,7 +46,7 @@ class RequestLensFailureFilterTest {
     val response = handler(Request(Method.GET, "/?test=abc"))
     verifyStringSnapshot(
       "RequestLensFailureFilter-query-mapping-error.txt",
-      response.toString()
+      response.toString(),
     )
   }
 }

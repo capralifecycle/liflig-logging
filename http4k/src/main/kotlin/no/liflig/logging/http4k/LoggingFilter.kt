@@ -51,13 +51,16 @@ object LoggingFilter {
         "value" to when {
           redactedHeaders.any { it.equals(name, ignoreCase = true) } -> "*REDACTED*"
           else -> value
-        }
+        },
       )
     }
 
   private fun String.limitBody() =
-    if (length > MAX_BODY_LOGGED) take(MAX_BODY_LOGGED) + "**CAPPED**"
-    else this
+    if (length > MAX_BODY_LOGGED) {
+      take(MAX_BODY_LOGGED) + "**CAPPED**"
+    } else {
+      this
+    }
 
   // Only log specific content types.
   // Include lack of content type as it is usually due to an error.
@@ -103,20 +106,20 @@ object LoggingFilter {
           uri = request.uri.toString(),
           headers = cleanAndNormalizeHeaders(request.headers, redactedHeaders),
           size = request.body.length?.toInt() ?: requestBody?.length,
-          body = requestBody?.limitBody()
+          body = requestBody?.limitBody(),
         ),
         response = ResponseLog(
           timestamp = endTimeInstant,
           statusCode = response.status.code,
           headers = cleanAndNormalizeHeaders(response.headers, redactedHeaders),
           size = response.body.length?.toInt() ?: responseBody?.length,
-          body = responseBody?.limitBody()
+          body = responseBody?.limitBody(),
         ),
         principal = principalLog(request),
         durationMs = duration.toMillis(),
         throwable = errorLogLens(request)?.throwable,
         status = normalizedStatusLens(request) ?: deriveNormalizedStatus(response),
-        thread = Thread.currentThread().name
+        thread = Thread.currentThread().name,
       )
 
       logHandler(logEntry)
@@ -148,8 +151,8 @@ object LoggingFilter {
         "HTTP request (${response.statusCode}) (${entry.durationMs} ms): ${request.method} ${request.uri}",
         Markers.appendRaw(
           "requestInfo",
-          json.encodeToString(RequestResponseLog.serializer(principalLogSerializer), entry)
-        )
+          json.encodeToString(RequestResponseLog.serializer(principalLogSerializer), entry),
+        ),
       )
 
       val throwable = entry.throwable

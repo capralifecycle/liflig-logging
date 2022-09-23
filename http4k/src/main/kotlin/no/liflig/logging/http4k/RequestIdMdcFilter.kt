@@ -27,7 +27,7 @@ object RequestIdMdcFilter {
 
   private val inputRequestIdPattern = Pattern.compile(
     "^$SINGLE_REQUEST_ID_PATTERN(,$SINGLE_REQUEST_ID_PATTERN)*$",
-    Pattern.CASE_INSENSITIVE
+    Pattern.CASE_INSENSITIVE,
   )
 
   operator fun invoke(requestIdChainLens: RequestContextLens<List<UUID>>) = Filter { next ->

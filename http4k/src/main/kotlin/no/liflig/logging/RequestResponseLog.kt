@@ -2,7 +2,7 @@
   InstantSerializer::class,
   NormalizedStatusSerializer::class,
   ThrowableSerializer::class,
-  UUIDSerializer::class
+  UUIDSerializer::class,
 )
 
 package no.liflig.logging

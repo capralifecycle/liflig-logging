@@ -34,77 +34,83 @@
     <dependency>
       <groupId>org.http4k</groupId>
       <artifactId>http4k-core</artifactId>
-      <version>4.10.1.0</version>
+      <version>4.30.9.0</version>
     </dependency>
     <dependency>
       <groupId>org.http4k</groupId>
       <artifactId>http4k-contract</artifactId>
-      <version>4.17.5.0</version>
+      <version>4.30.9.0</version>
     </dependency>
     <dependency>
       <groupId>org.http4k</groupId>
       <artifactId>http4k-format-jackson</artifactId>
-      <version>4.10.1.0</version>
+      <version>4.30.9.0</version>
       <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>1.7.32</version>
+      <version>1.7.36</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.13.4</version>
     </dependency>
 
     <dependency>
       <groupId>net.logstash.logback</groupId>
       <artifactId>logstash-logback-encoder</artifactId>
-      <version>6.6</version>
+      <version>7.2</version>
     </dependency>
 
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <version>5.8.2</version>
+      <version>5.9.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.vintage</groupId>
       <artifactId>junit-vintage-engine</artifactId>
-      <version>5.8.2</version>
+      <version>5.9.0</version>
       <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.2.10</version>
+      <version>1.2.11</version>
       <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>io.mockk</groupId>
       <artifactId>mockk</artifactId>
-      <version>1.12.2</version>
+      <version>1.12.5</version>
       <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>no.liflig</groupId>
       <artifactId>snapshot-test</artifactId>
-      <version>1.20220113.000941</version>
+      <version>1.20220923.101504</version>
       <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>io.kotest</groupId>
       <artifactId>kotest-assertions-core-jvm</artifactId>
-      <version>4.6.4</version>
+      <version>5.4.2</version>
       <scope>test</scope>
     </dependency>
 
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>
-      <version>11.0.7</version>
+      <version>11.0.12</version>
       <scope>test</scope>
     </dependency>
 

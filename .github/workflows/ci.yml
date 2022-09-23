@@ -1,0 +1,83 @@
+name: ci
+on:
+  push:
+    branches:
+      - "**"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-20.04
+    container:
+      image: "public.ecr.aws/z8l5l4v4/buildtools/tool/maven:3-jdk-11-alpine"
+      options: "--user 1001:121" # uid and gid of default GitHub user to avoid file permission issues. See https://github.com/actions/runner/issues/691 for more details.
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: maven-
+      - name: store branch name in environment
+        run: echo "BRANCH_NAME=$(echo ${GITHUB_REF##*/})" >> "$GITHUB_ENV"
+      - name: git config
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      - name: configure maven
+        run: |
+          mkdir -p "$HOME/.m2"
+          cat <<EOF > "$HOME/.m2/settings.xml"
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>\${env.GITHUB_ACTOR}</username>
+                <password>\${env.GITHUB_TOKEN}</password>
+              </server>
+              <server>
+                <id>capra-releases</id>
+                <username>\${env.NEXUS_USERNAME}</username>
+                <password>\${env.NEXUS_PASSWORD}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+      - name: conditional release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME_FOR_PUBLIC_LIBS }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_FOR_PUBLIC_LIBS }}
+        run: |
+          export MAVEN_OPTS="-Duser.home=$HOME" # Home directory not automatically picked up for some reason
+          major_version="$(sed -n "s/^.*<major-version>\([0-9]\{1,\}\)<\/major-version>.*$/\1/p" pom.xml)"
+          date="$(date -u "+%Y%m%d.%H%M%S")"
+          tag="$major_version.$date"
+          printf "Tag to use for potential release: %s\n" "$tag"
+          mvn -B org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M3:enforce -Drules=requireReleaseDeps
+
+          release="false"
+          git fetch --tags
+          if [ "$BRANCH_NAME" = "master" ]; then
+            latest_tag="$(git describe --abbrev=0 || true)"
+            latest_tag_commit="$(if test -n "$latest_tag"; then git rev-parse "$latest_tag^{}"; fi)"
+            if [ ! "$latest_tag_commit" = "$GITHUB_SHA" ]; then
+              release="true"
+            fi
+          fi
+          if [ "$release" = "true" ]; then
+            # Release to Nexus
+            mvn -B source:jar deploy scm:tag -Drevision="$tag" -Dtag="$tag"
+            # Release to GitHub Packages
+            mvn deploy -DaltReleaseDeploymentRepository="github::default::https://maven.pkg.github.com/capralifecycle/liflig-logging" -Drevision="$tag" -Dtag="$tag"
+          else
+            mvn -B source:jar verify -Drevision="$tag" -Dtag="$tag"
+          fi
