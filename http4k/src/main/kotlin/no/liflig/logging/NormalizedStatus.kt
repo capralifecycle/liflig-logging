@@ -18,7 +18,7 @@ enum class NormalizedStatusCode {
 enum class ClientErrorCategory {
   BAD_REQUEST,
   NOT_FOUND,
-  UNAUTHORIZED
+  UNAUTHORIZED,
 }
 
 sealed class NormalizedStatus(val code: NormalizedStatusCode) {
@@ -59,7 +59,7 @@ sealed class NormalizedStatus(val code: NormalizedStatusCode) {
   }
 
   data class ClientError(
-    val category: ClientErrorCategory
+    val category: ClientErrorCategory,
   ) : NormalizedStatus(NormalizedStatusCode.CLIENT_ERROR)
 }
 

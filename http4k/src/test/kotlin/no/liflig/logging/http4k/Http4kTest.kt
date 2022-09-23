@@ -61,7 +61,7 @@ class Http4kTest {
       )
       routes += "/" meta {
         summary = "Example route"
-      } bindContract Method.GET to {
+      } bindContract Method.GET to { _ ->
         Response(Status.OK)
       }
     }
@@ -92,7 +92,7 @@ class Http4kTest {
             val dummyPrincipal = Principal("dummy-principal")
             next(req.with(principalLens of dummyPrincipal))
           }
-        }
+        },
       )
       .then(api)
 

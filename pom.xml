@@ -21,8 +21,8 @@
     -->
     <kotlin.code.style>official</kotlin.code.style>
 
-    <kotlin.version>1.5.31</kotlin.version>
-    <kotlinx-serialization.version>1.2.2</kotlinx-serialization.version>
+    <kotlin.version>1.7.10</kotlin.version>
+    <kotlinx-serialization.version>1.4.0</kotlinx-serialization.version>
   </properties>
 
   <scm>
@@ -38,12 +38,8 @@
 
   <repositories>
     <repository>
-      <id>capra-releases</id>
-      <name>Capra/Liflig Release Repository</name>
-      <url>https://mvnrepo.capraconsulting.no/content/repositories/capra-releases</url>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/capralifecycle/*</url>
     </repository>
   </repositories>
 
@@ -52,10 +48,6 @@
       <id>capra-releases</id>
       <url>https://mvnrepo.capraconsulting.no/content/repositories/capra-releases</url>
     </repository>
-    <snapshotRepository>
-      <id>capra-snapshots</id>
-      <url>https://mvnrepo.capraconsulting.no/content/repositories/capra-snapshots</url>
-    </snapshotRepository>
   </distributionManagement>
 
   <dependencyManagement>
@@ -90,22 +82,22 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-deploy-plugin</artifactId>
-          <version>2.8.2</version>
+          <version>3.0.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-install-plugin</artifactId>
-          <version>2.5.2</version>
+          <version>3.0.1</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
-          <version>3.2.2</version>
+          <version>3.3.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-resources-plugin</artifactId>
-          <version>3.2.0</version>
+          <version>3.3.0</version>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -146,7 +138,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.0.0</version>
+        <version>3.1.0</version>
         <executions>
           <execution>
             <id>enforce-maven</id>
@@ -167,7 +159,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>flatten-maven-plugin</artifactId>
-        <version>1.2.7</version>
+        <version>1.3.0</version>
         <configuration>
           <updatePomFile>true</updatePomFile>
           <flattenMode>resolveCiFriendliesOnly</flattenMode>
@@ -193,7 +185,7 @@
       <plugin>
         <groupId>com.github.gantsign.maven</groupId>
         <artifactId>ktlint-maven-plugin</artifactId>
-        <version>1.13.0</version>
+        <version>1.15.1</version>
         <executions>
           <execution>
             <id>check</id>

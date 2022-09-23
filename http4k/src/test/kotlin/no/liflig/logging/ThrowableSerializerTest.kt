@@ -24,17 +24,17 @@ class ThrowableSerializerTest {
 
     assertEquals(
       "java.lang.RuntimeException: inner",
-      obj["cause"]!!.jsonObject["value"]!!.jsonPrimitive.content
+      obj["cause"]!!.jsonObject["value"]!!.jsonPrimitive.content,
     )
 
     assertEquals(
       "ThrowableSerializerTest.kt",
-      obj["stackTrace"]!!.jsonArray[0].jsonObject["fileName"]!!.jsonPrimitive.content
+      obj["stackTrace"]!!.jsonArray[0].jsonObject["fileName"]!!.jsonPrimitive.content,
     )
 
     assertEquals(
       listOf("cause", "stackTrace", "suppressed", "value"),
-      obj.keys.sorted()
+      obj.keys.sorted(),
     )
   }
 }
