@@ -61,7 +61,7 @@ class Http4kTest {
       )
       routes += "/" meta {
         summary = "Example route"
-      } bindContract Method.GET to {
+      } bindContract Method.GET to { _ ->
         Response(Status.OK)
       }
     }
