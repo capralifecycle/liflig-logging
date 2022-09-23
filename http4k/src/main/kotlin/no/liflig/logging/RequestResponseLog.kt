@@ -2,7 +2,7 @@
   InstantSerializer::class,
   NormalizedStatusSerializer::class,
   ThrowableSerializer::class,
-  UUIDSerializer::class
+  UUIDSerializer::class,
 )
 
 package no.liflig.logging
@@ -42,7 +42,7 @@ data class RequestResponseLog<T : PrincipalLog>(
   /**
    * Name of the thread handling the request.
    */
-  val thread: String
+  val thread: String,
 )
 
 @Serializable
@@ -55,7 +55,7 @@ data class RequestLog(
   val uri: String,
   val headers: List<Map<String, String?>>,
   val size: Int?,
-  val body: String?
+  val body: String?,
 )
 
 @Serializable
@@ -67,5 +67,5 @@ data class ResponseLog(
   val statusCode: Int,
   val headers: List<Map<String, String?>>,
   val size: Int?,
-  val body: String?
+  val body: String?,
 )

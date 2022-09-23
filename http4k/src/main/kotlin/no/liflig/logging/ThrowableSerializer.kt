@@ -19,8 +19,8 @@ object ThrowableSerializer : KSerializer<Throwable> {
         value.toString(),
         value.stackTrace,
         value.suppressed,
-        value.cause
-      )
+        value.cause,
+      ),
     )
 
   override fun deserialize(decoder: Decoder): Throwable = throw NotImplementedError()
@@ -31,7 +31,7 @@ object ThrowableSerializer : KSerializer<Throwable> {
     val value: String,
     val stackTrace: Array<StackTraceElement>?,
     val suppressed: Array<Throwable>?,
-    val cause: Throwable?
+    val cause: Throwable?,
   )
 }
 
@@ -45,8 +45,8 @@ object StackTraceElementSerializer : KSerializer<StackTraceElement> {
         value.className,
         value.methodName,
         value.fileName,
-        value.lineNumber
-      )
+        value.lineNumber,
+      ),
     )
 
   override fun deserialize(decoder: Decoder): StackTraceElement = throw NotImplementedError()
@@ -57,6 +57,6 @@ object StackTraceElementSerializer : KSerializer<StackTraceElement> {
     val declaringClass: String,
     val methodName: String,
     val fileName: String?,
-    val lineNumber: Int
+    val lineNumber: Int,
   )
 }
