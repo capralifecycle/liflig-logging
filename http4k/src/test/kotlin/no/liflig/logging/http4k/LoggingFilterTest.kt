@@ -45,20 +45,20 @@ class LoggingFilterTest {
       uri = "/example",
       headers = emptyList(),
       size = null,
-      body = null
+      body = null,
     ),
     response = ResponseLog(
       timestamp = Instant.parse("2021-04-25T21:27:12.302741Z"),
       statusCode = 200,
       headers = emptyList(),
       size = null,
-      body = null
+      body = null,
     ),
     principal = null,
     durationMs = 10,
     throwable = null,
     status = null,
-    thread = "dummy"
+    thread = "dummy",
   )
 
   @Test
@@ -75,7 +75,7 @@ class LoggingFilterTest {
       logHandler = {
         events.add(it)
         Unit
-      }
+      },
     )
 
     val request = Request(Method.GET, "/some/url")
@@ -118,7 +118,7 @@ class LoggingFilterTest {
       logHandler = {
         events.add(it)
         Unit
-      }
+      },
     )
 
     val request = Request(Method.GET, "/some/url").header("authorization", "my very secret value")

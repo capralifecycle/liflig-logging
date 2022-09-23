@@ -26,7 +26,7 @@ class ErrorHandlerFilterTest {
       { thisErrorLog, request ->
         errorLog = thisErrorLog
         request
-      }
+      },
     )
 
     val handler = ErrorHandlerFilter(errorLogLens).then {
@@ -53,7 +53,7 @@ class ErrorHandlerFilterTest {
       { thisErrorLog, request ->
         errorLog = thisErrorLog
         request
-      }
+      },
     )
 
     val handler = ErrorHandlerFilter(errorLogLens).then {
@@ -80,7 +80,7 @@ class ErrorHandlerFilterTest {
       { thisErrorLog, request ->
         errorLog = thisErrorLog
         request
-      }
+      },
     )
 
     val handler = ErrorHandlerFilter(errorLogLens).then {

@@ -32,7 +32,7 @@ import org.http4k.lens.LensFailure
 class ErrorResponseRendererWithLogging(
   private val errorLogLens: BiDiLens<Request, ErrorLog?>,
   private val normalizedStatusLens: BiDiLens<Request, NormalizedStatus?>,
-  private val delegate: ErrorResponseRenderer
+  private val delegate: ErrorResponseRenderer,
 ) : ErrorResponseRenderer {
   override fun badRequest(lensFailure: LensFailure): Response {
     val target = lensFailure.target
