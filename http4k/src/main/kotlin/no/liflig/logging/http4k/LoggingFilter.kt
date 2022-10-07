@@ -18,6 +18,7 @@ import org.http4k.lens.BiDiLens
 import org.http4k.lens.Header
 import org.http4k.lens.RequestContextLens
 import org.slf4j.LoggerFactory
+import org.slf4j.helpers.NOPLogger
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -27,6 +28,12 @@ import java.util.UUID
  */
 object LoggingFilter {
   private val logger = LoggerFactory.getLogger(LoggingFilter.javaClass)
+
+  init {
+    if (logger is NOPLogger) {
+      throw RuntimeException("Logging is not configured!")
+    }
+  }
 
   /**
    * The maximum size of a CloudWatch log event is 256 KiB.
