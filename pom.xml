@@ -22,7 +22,7 @@
     <kotlin.code.style>official</kotlin.code.style>
 
     <kotlin.version>1.7.20</kotlin.version>
-    <kotlinx-serialization.version>1.4.0</kotlinx-serialization.version>
+    <kotlinx-serialization.version>1.4.1</kotlinx-serialization.version>
   </properties>
 
   <scm>
