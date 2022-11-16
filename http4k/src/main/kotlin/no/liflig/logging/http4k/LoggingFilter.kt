@@ -145,14 +145,21 @@ object LoggingFilter {
    * If [printStacktraceToConsole] is true, any throwable attached to the log entry
    * will be printed to stdout. This is typically used locally to easy debugging
    * during development.
+   *
+   * If [ignoreSuccessfulHealthChecks] is true, any calls to /health that returned HTTP200 - Ok will not be logged.
    */
   fun <T : PrincipalLog> createLogHandler(
     printStacktraceToConsole: Boolean,
     principalLogSerializer: KSerializer<T>,
+    ignoreSuccessfulHealthChecks: Boolean = false,
   ): (RequestResponseLog<T>) -> Unit {
-    return { entry ->
+    return handler@{ entry ->
       val request = entry.request
       val response = entry.response
+
+      if (ignoreSuccessfulHealthChecks && request.uri == "/health" && response.statusCode == 200 && entry.throwable == null) {
+        return@handler
+      }
 
       logger.info(
         "HTTP request (${response.statusCode}) (${entry.durationMs} ms): ${request.method} ${request.uri}",
