@@ -146,18 +146,18 @@ object LoggingFilter {
    * will be printed to stdout. This is typically used locally to easy debugging
    * during development.
    *
-   * If [ignoreSuccessfulHealthChecks] is true, any calls to /health that returned HTTP200 - Ok will not be logged.
+   * If [supressSuccessfulHealthChecks] is true, any calls to /health that returned HTTP200 - Ok will not be logged.
    */
   fun <T : PrincipalLog> createLogHandler(
     printStacktraceToConsole: Boolean,
     principalLogSerializer: KSerializer<T>,
-    ignoreSuccessfulHealthChecks: Boolean = false,
+    suppressSuccessfulHealthChecks: Boolean = true,
   ): (RequestResponseLog<T>) -> Unit {
     return handler@{ entry ->
       val request = entry.request
       val response = entry.response
 
-      if (ignoreSuccessfulHealthChecks && request.uri == "/health" && response.statusCode == 200 && entry.throwable == null) {
+      if (suppressSuccessfulHealthChecks && request.uri == "/health" && response.statusCode == 200 && entry.throwable == null) {
         return@handler
       }
 
