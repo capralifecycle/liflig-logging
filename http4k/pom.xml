@@ -96,7 +96,7 @@
     <dependency>
       <groupId>no.liflig</groupId>
       <artifactId>snapshot-test</artifactId>
-      <version>1.20221111.175334</version>
+      <version>1.20221118.022111</version>
       <scope>test</scope>
     </dependency>
 
