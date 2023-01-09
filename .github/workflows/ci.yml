@@ -9,11 +9,19 @@ defaults:
     shell: bash
 
 jobs:
+  get-runner-user:
+    runs-on: ubuntu-20.04
+    outputs:
+      uid_gid: ${{ steps.get-user.outputs.uid_gid }}
+    steps:
+      - id: get-user
+        run: echo "uid_gid=$(id -u):$(id -g)" >> "$GITHUB_OUTPUT"
   build-and-deploy:
+    needs: get-runner-user
     runs-on: ubuntu-20.04
     container:
       image: "public.ecr.aws/z8l5l4v4/buildtools/tool/maven:3-jdk-11-alpine"
-      options: "--user 1001:121" # uid and gid of default GitHub user to avoid file permission issues. See https://github.com/actions/runner/issues/691 for more details.
+      options: --user ${{ needs.get-runner-user.outputs.uid_gid }}
     permissions:
       contents: write
       packages: write
