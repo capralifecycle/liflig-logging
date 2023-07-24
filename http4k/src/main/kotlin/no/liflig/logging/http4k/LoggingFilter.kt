@@ -18,6 +18,8 @@ import org.http4k.lens.BiDiLens
 import org.http4k.lens.Header
 import org.http4k.lens.RequestContextLens
 import org.slf4j.LoggerFactory
+import org.slf4j.Marker
+import org.slf4j.event.Level
 import org.slf4j.helpers.NOPLogger
 import java.time.Duration
 import java.time.Instant
@@ -136,45 +138,59 @@ object LoggingFilter {
   }
 
   /**
-   * Log handler that will log information from the request using INFO level
+   * Log handler that will log information from the request using `INFO` level
    * under the requestInfo property.
+   * Errors are logged with `WARN` level, except `500` responses, which are logged at `ERROR` level.
    *
    * This relies on using the "net.logstash.logback.encoder.LogstashEncoder"
    * Logback encoder, since it uses special markers that it will parse.
-   *
-   * If [printStacktraceToConsole] is true, any throwable attached to the log entry
-   * will be printed to stdout. This is typically used locally to easy debugging
-   * during development.
-   *
-   * If [supressSuccessfulHealthChecks] is true, any calls to /health that returned HTTP200 - Ok will not be logged.
    */
   fun <T : PrincipalLog> createLogHandler(
+    /** Errors are always logged, but if this is true, the raw stack trace is dumped directly to the console.
+     * This is typically used locally to easy debugging during development.
+     *
+     * Set to false in production and when using "Structured Logging" (json logs etc), because the stacktrace
+     * will break parsing. */
     printStacktraceToConsole: Boolean,
     principalLogSerializer: KSerializer<T>,
+    /** When `true`, any calls to `/health` that returned `200 OK` will not be logged. */
     suppressSuccessfulHealthChecks: Boolean = true,
   ): (RequestResponseLog<T>) -> Unit {
     return handler@{ entry ->
       val request = entry.request
       val response = entry.response
 
-      if (suppressSuccessfulHealthChecks && request.uri == "/health" && response.statusCode == 200 && entry.throwable == null) {
+      if (suppressSuccessfulHealthChecks && request.uri == "/health" &&
+        response.statusCode == 200 && entry.throwable == null
+      ) {
+        return@handler
+      }
+
+      val logMarker: Marker = Markers.appendRaw(
+        "requestInfo",
+        json.encodeToString(RequestResponseLog.serializer(principalLogSerializer), entry),
+      )
+
+      if (entry.throwable != null) {
+        val level = when (entry.response.statusCode) {
+          500 -> Level.ERROR
+          else -> Level.WARN
+        }
+        logger.atLevel(level)
+          .addMarker(logMarker)
+          .setCause(entry.throwable)
+          .log("HTTP request failed (${response.statusCode}) (${entry.durationMs} ms): ${request.method} ${request.uri}")
+
+        if (printStacktraceToConsole) {
+          entry.throwable.printStackTrace()
+        }
         return@handler
       }
 
       logger.info(
+        logMarker,
         "HTTP request (${response.statusCode}) (${entry.durationMs} ms): ${request.method} ${request.uri}",
-        Markers.appendRaw(
-          "requestInfo",
-          json.encodeToString(RequestResponseLog.serializer(principalLogSerializer), entry),
-        ),
       )
-
-      val throwable = entry.throwable
-      if (printStacktraceToConsole && throwable != null) {
-        // Using println instead of logger to not scramble logfile.
-        println("Throwable from request ${request.method} ${request.uri}:")
-        throwable.printStackTrace()
-      }
     }
   }
 }
