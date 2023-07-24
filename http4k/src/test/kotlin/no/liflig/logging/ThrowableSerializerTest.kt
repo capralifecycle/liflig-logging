@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import no.liflig.logging.internal.json.ThrowableSerializer
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 

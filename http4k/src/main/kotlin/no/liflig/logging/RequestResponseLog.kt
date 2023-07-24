@@ -9,9 +9,18 @@ package no.liflig.logging
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.UseSerializers
+import no.liflig.logging.internal.json.InstantSerializer
+import no.liflig.logging.internal.json.ThrowableSerializer
+import no.liflig.logging.internal.json.UUIDSerializer
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * Represents a "principal" (user, or requesting entity) that will be logged.
+ *
+ * This special logging view of a principal should exclude identifiable information like names,
+ * email, etc.
+ */
 interface PrincipalLog
 
 @Serializable
@@ -29,6 +38,7 @@ data class RequestResponseLog<T : PrincipalLog>(
   val requestIdChain: List<UUID>,
   val request: RequestLog,
   val response: ResponseLog,
+  /** The [Principal][PrincipalLog] that executed the request. */
   val principal: T?,
   /**
    * Request duration in ms.
@@ -40,7 +50,7 @@ data class RequestResponseLog<T : PrincipalLog>(
   val throwable: Throwable?,
   val status: NormalizedStatus?,
   /**
-   * Name of the thread handling the request.
+   * Name of the [java.lang.Thread] handling the request.
    */
   val thread: String,
 )

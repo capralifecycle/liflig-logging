@@ -9,7 +9,9 @@ import org.http4k.core.with
 import org.http4k.lens.BiDiLens
 
 /**
- * Handle exceptions and errors. Saves the throwable on context so it can be used during logging.
+ * Catches throwables and attaches them to the request with `errorLogLens`.
+ * Then responds with `500 Internal Server Error` for all exceptions,
+ * except jetty EofException which returns `400 Bad Request`.
  */
 object ErrorHandlerFilter {
   operator fun invoke(errorLogLens: BiDiLens<Request, ErrorLog?>) = Filter { next ->

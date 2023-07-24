@@ -1,4 +1,4 @@
-package no.liflig.logging
+package no.liflig.logging.internal.json
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind

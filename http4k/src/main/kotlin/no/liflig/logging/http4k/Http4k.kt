@@ -6,6 +6,15 @@ import org.http4k.core.RequestContexts
 import org.http4k.lens.RequestContextKey
 import java.util.UUID
 
+/**
+ * Operates on [ErrorLog] instances in the [RequestContexts].
+ *
+ * Used together with:
+ * - [ErrorHandlerFilter] to attach errors on the context
+ * - [ErrorResponseRendererWithLogging]
+ *   to attach lens failures on the context after 400 Bad Request
+ * - [LoggingFilter] to read and log errors from the context (via a `logHandler`)
+ */
 fun createErrorLogLens(contexts: RequestContexts) =
   RequestContextKey.optional<ErrorLog>(contexts)
 

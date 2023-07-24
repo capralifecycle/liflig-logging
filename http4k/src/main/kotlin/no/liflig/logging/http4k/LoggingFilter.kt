@@ -53,7 +53,10 @@ object LoggingFilter {
     ignoreUnknownKeys = true
   }
 
-  private fun cleanAndNormalizeHeaders(headers: Headers, redactedHeaders: List<String>): List<Map<String, String?>> =
+  private fun cleanAndNormalizeHeaders(
+    headers: Headers,
+    redactedHeaders: List<String>,
+  ): List<Map<String, String?>> =
     headers.map { (name, value) ->
       mapOf(
         "name" to name,
@@ -79,13 +82,22 @@ object LoggingFilter {
   }
 
   operator fun <T : PrincipalLog> invoke(
+    /** Extracts whe [PrincipalLog] from the [Request]. */
     principalLog: (Request) -> T?,
+    /** Reads the [ErrorLog] from the [Request], if any. */
     errorLogLens: BiDiLens<Request, ErrorLog?>,
     normalizedStatusLens: BiDiLens<Request, NormalizedStatus?>,
     requestIdChainLens: RequestContextLens<List<UUID>>,
+    /** A callback to pass the final log entry to a logger, like SLF4J. */
     logHandler: (RequestResponseLog<T>) -> Unit,
+    /** `true` to log both request and response body.
+     * Only logs white-listed content types in [contentTypesToLog]. */
     includeBody: Boolean = true,
+    /** Content-Type header values to white-list for logging.
+     * Requests or responses with different types will not have their body logged. */
     contentTypesToLog: List<ContentType> = listOf(ContentType.APPLICATION_JSON),
+    /** Header names to black-list from logging.
+     * Their values are replaced with `*REDACTED*` in both request and reponse. */
     redactedHeaders: List<String> = listOf("authorization", "x-api-key"),
   ) = Filter { next ->
     { request ->
