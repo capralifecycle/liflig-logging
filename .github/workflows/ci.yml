@@ -10,7 +10,7 @@ defaults:
 
 jobs:
   get-runner-user:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     outputs:
       uid_gid: ${{ steps.get-user.outputs.uid_gid }}
     steps:
@@ -18,7 +18,7 @@ jobs:
         run: echo "uid_gid=$(id -u):$(id -g)" >> "$GITHUB_OUTPUT"
   build-and-deploy:
     needs: get-runner-user
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     container:
       image: "public.ecr.aws/z8l5l4v4/buildtools/tool/maven:3-jdk-11-alpine"
       options: --user ${{ needs.get-runner-user.outputs.uid_gid }}
