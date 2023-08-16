@@ -43,13 +43,6 @@
     </repository>
   </repositories>
 
-  <distributionManagement>
-    <repository>
-      <id>capra-releases</id>
-      <url>https://mvnrepo.capraconsulting.no/content/repositories/capra-releases</url>
-    </repository>
-  </distributionManagement>
-
   <dependencyManagement>
     <dependencies>
       <!-- Ensure most kotlin packages uses same version. -->

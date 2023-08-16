@@ -51,19 +51,12 @@ jobs:
                 <username>\${env.GITHUB_ACTOR}</username>
                 <password>\${env.GITHUB_TOKEN}</password>
               </server>
-              <server>
-                <id>capra-releases</id>
-                <username>\${env.NEXUS_USERNAME}</username>
-                <password>\${env.NEXUS_PASSWORD}</password>
-              </server>
             </servers>
           </settings>
           EOF
       - name: conditional release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME_FOR_PUBLIC_LIBS }}
-          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD_FOR_PUBLIC_LIBS }}
         run: |
           export MAVEN_OPTS="-Duser.home=$HOME" # Home directory not automatically picked up for some reason
           major_version="$(sed -n "s/^.*<major-version>\([0-9]\{1,\}\)<\/major-version>.*$/\1/p" pom.xml)"
@@ -82,8 +75,6 @@ jobs:
             fi
           fi
           if [ "$release" = "true" ]; then
-            # Release to Nexus
-            mvn -B source:jar deploy scm:tag -Drevision="$tag" -Dtag="$tag"
             # Release to GitHub Packages
             mvn -B source:jar deploy -DaltReleaseDeploymentRepository="github::default::https://maven.pkg.github.com/capralifecycle/liflig-logging" -Drevision="$tag" -Dtag="$tag"
           else
