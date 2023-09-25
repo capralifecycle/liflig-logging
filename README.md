@@ -18,6 +18,17 @@ mvn verify
 
 The CI server will automatically release new version for builds on master.
 
+## Linting
+
+This project uses ktfmt along with spotless to lint the kotlin code.
+
+Only check lint: `mvn spotless:check`
+
+Fix: `mvn spotless:apply`
+
+For IntelliJ you may use the "ktfmt"-plugin in order to consolidate with its "reformat"-tool:
+https://plugins.jetbrains.com/plugin/14912-ktfmt
+
 ## Using the library
 
 Requirements:

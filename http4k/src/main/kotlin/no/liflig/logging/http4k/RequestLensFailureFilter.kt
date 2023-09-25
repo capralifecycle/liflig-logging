@@ -10,5 +10,5 @@ import org.http4k.filter.ServerFilters
  */
 object RequestLensFailureFilter {
   operator fun invoke(errorResponseRenderer: ErrorResponseRenderer): Filter =
-    ServerFilters.CatchLensFailure(errorResponseRenderer::badRequest)
+      ServerFilters.CatchLensFailure(errorResponseRenderer::badRequest)
 }

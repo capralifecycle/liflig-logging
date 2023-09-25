@@ -59,15 +59,16 @@ sealed class NormalizedStatus(val code: NormalizedStatusCode) {
   }
 
   data class ClientError(
-    val category: ClientErrorCategory,
+      val category: ClientErrorCategory,
   ) : NormalizedStatus(NormalizedStatusCode.CLIENT_ERROR)
 }
 
 class NormalizedStatusSerializer : KSerializer<NormalizedStatus> {
-  override val descriptor: SerialDescriptor = buildClassSerialDescriptor("NormalizedStatus") {
-    element("code", String.serializer().descriptor)
-    element("category", String.serializer().descriptor, isOptional = true)
-  }
+  override val descriptor: SerialDescriptor =
+      buildClassSerialDescriptor("NormalizedStatus") {
+        element("code", String.serializer().descriptor)
+        element("category", String.serializer().descriptor, isOptional = true)
+      }
 
   override fun serialize(encoder: Encoder, value: NormalizedStatus) {
     encoder.encodeStructure(descriptor) {

@@ -20,18 +20,17 @@ class ErrorHandlerFilterTest {
   fun `maps jetty EofException as bad user request`() {
     var errorLog: ErrorLog? = null
 
-    val errorLogLens = BiDiLens<Request, ErrorLog?>(
-      Meta(false, "dummy", ParamMeta.StringParam, "dummy"),
-      { ErrorLog(RuntimeException("dummy")) },
-      { thisErrorLog, request ->
-        errorLog = thisErrorLog
-        request
-      },
-    )
+    val errorLogLens =
+        BiDiLens<Request, ErrorLog?>(
+            Meta(false, "dummy", ParamMeta.StringParam, "dummy"),
+            { ErrorLog(RuntimeException("dummy")) },
+            { thisErrorLog, request ->
+              errorLog = thisErrorLog
+              request
+            },
+        )
 
-    val handler = ErrorHandlerFilter(errorLogLens).then {
-      throw EofException("doh")
-    }
+    val handler = ErrorHandlerFilter(errorLogLens).then { throw EofException("doh") }
 
     val response = handler(Request(Method.GET, "/dummy"))
 
@@ -47,18 +46,17 @@ class ErrorHandlerFilterTest {
   fun `maps any other exception to internal server error`() {
     var errorLog: ErrorLog? = null
 
-    val errorLogLens = BiDiLens<Request, ErrorLog?>(
-      Meta(false, "dummy", ParamMeta.StringParam, "dummy"),
-      { ErrorLog(RuntimeException("dummy")) },
-      { thisErrorLog, request ->
-        errorLog = thisErrorLog
-        request
-      },
-    )
+    val errorLogLens =
+        BiDiLens<Request, ErrorLog?>(
+            Meta(false, "dummy", ParamMeta.StringParam, "dummy"),
+            { ErrorLog(RuntimeException("dummy")) },
+            { thisErrorLog, request ->
+              errorLog = thisErrorLog
+              request
+            },
+        )
 
-    val handler = ErrorHandlerFilter(errorLogLens).then {
-      throw RuntimeException("doh")
-    }
+    val handler = ErrorHandlerFilter(errorLogLens).then { throw RuntimeException("doh") }
 
     val response = handler(Request(Method.GET, "/dummy"))
 
@@ -74,18 +72,17 @@ class ErrorHandlerFilterTest {
   fun `catches errors such as NotImplementedError`() {
     var errorLog: ErrorLog? = null
 
-    val errorLogLens = BiDiLens<Request, ErrorLog?>(
-      Meta(false, "dummy", ParamMeta.StringParam, "dummy"),
-      { ErrorLog(RuntimeException("dummy")) },
-      { thisErrorLog, request ->
-        errorLog = thisErrorLog
-        request
-      },
-    )
+    val errorLogLens =
+        BiDiLens<Request, ErrorLog?>(
+            Meta(false, "dummy", ParamMeta.StringParam, "dummy"),
+            { ErrorLog(RuntimeException("dummy")) },
+            { thisErrorLog, request ->
+              errorLog = thisErrorLog
+              request
+            },
+        )
 
-    val handler = ErrorHandlerFilter(errorLogLens).then {
-      throw NotImplementedError("doh")
-    }
+    val handler = ErrorHandlerFilter(errorLogLens).then { throw NotImplementedError("doh") }
 
     val response = handler(Request(Method.GET, "/dummy"))
 

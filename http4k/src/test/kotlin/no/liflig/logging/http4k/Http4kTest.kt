@@ -35,66 +35,74 @@ class Http4kTest {
 
     val principalLens = RequestContextKey.optional<Principal>(contexts)
 
-    val principalLog = { request: Request ->
-      principalLens(request)?.toLog()
-    }
+    val principalLog = { request: Request -> principalLens(request)?.toLog() }
 
-    val logHandler = LoggingFilter.createLogHandler(
-      printStacktraceToConsole = false,
-      principalLogSerializer = MyPrincipalLog.serializer(),
-    )
+    val logHandler =
+        LoggingFilter.createLogHandler(
+            printStacktraceToConsole = false,
+            principalLogSerializer = MyPrincipalLog.serializer(),
+        )
 
-    val errorResponseRenderer = ErrorResponseRendererWithLogging(
-      errorLogLens,
-      normalizedStatusLens,
-      JsonErrorResponseRenderer(Jackson),
-    )
+    val errorResponseRenderer =
+        ErrorResponseRendererWithLogging(
+            errorLogLens,
+            normalizedStatusLens,
+            JsonErrorResponseRenderer(Jackson),
+        )
 
-    val api = "/" bind contract {
-      renderer = OpenApi3(
-        apiInfo = ApiInfo(
-          title = "example",
-          version = "unversioned",
-        ),
-        json = Jackson,
-        errorResponseRenderer = errorResponseRenderer,
-      )
-      routes += "/" meta {
-        summary = "Example route"
-      } bindContract Method.GET to { _ ->
-        Response(Status.OK)
-      }
-    }
+    val api =
+        "/" bind
+            contract {
+              renderer =
+                  OpenApi3(
+                      apiInfo =
+                          ApiInfo(
+                              title = "example",
+                              version = "unversioned",
+                          ),
+                      json = Jackson,
+                      errorResponseRenderer = errorResponseRenderer,
+                  )
+              routes +=
+                  "/" meta
+                      {
+                        summary = "Example route"
+                      } bindContract
+                      Method.GET to
+                      { _ ->
+                        Response(Status.OK)
+                      }
+            }
 
     lateinit var logEntry: RequestResponseLog<MyPrincipalLog>
 
-    val handler = ServerFilters
-      .InitialiseRequestContext(contexts)
-      .then(RequestIdMdcFilter(requestIdChainLens))
-      .then(CatchAllExceptionFilter())
-      .then(
-        LoggingFilter(
-          principalLog,
-          errorLogLens,
-          normalizedStatusLens,
-          requestIdChainLens,
-          {
-            logEntry = it
-            logHandler(it)
-          },
-        ),
-      )
-      .then(ErrorHandlerFilter(errorLogLens))
-      .then(RequestLensFailureFilter(errorResponseRenderer))
-      .then(
-        Filter { next ->
-          { req ->
-            val dummyPrincipal = Principal("dummy-principal")
-            next(req.with(principalLens of dummyPrincipal))
-          }
-        },
-      )
-      .then(api)
+    val handler =
+        ServerFilters.InitialiseRequestContext(contexts)
+            .then(RequestIdMdcFilter(requestIdChainLens))
+            .then(CatchAllExceptionFilter())
+            .then(
+                LoggingFilter(
+                    principalLog,
+                    errorLogLens,
+                    normalizedStatusLens,
+                    requestIdChainLens,
+                    {
+                      logEntry = it
+                      logHandler(it)
+                    },
+                ),
+            )
+            .then(ErrorHandlerFilter(errorLogLens))
+            .then(RequestLensFailureFilter(errorResponseRenderer))
+            .then(
+                Filter { next ->
+                  { req ->
+                    val dummyPrincipal = Principal("dummy-principal")
+                    next(req.with(principalLens of dummyPrincipal))
+                  }
+                },
+            )
+            .then(api)
 
     val response = handler(Request(Method.GET, "/"))
 
@@ -104,13 +112,12 @@ class Http4kTest {
 
   @Serializable
   private data class MyPrincipalLog(
-    val id: String,
+      val id: String,
   ) : PrincipalLog
 
   private data class Principal(
-    val id: String,
+      val id: String,
   )
 
-  private fun Principal.toLog() =
-    MyPrincipalLog(id)
+  private fun Principal.toLog() = MyPrincipalLog(id)
 }

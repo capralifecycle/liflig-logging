@@ -1,21 +1,20 @@
 package no.liflig.logging.http4k
 
+import java.util.UUID
+import java.util.regex.Pattern
 import org.http4k.core.Filter
 import org.http4k.core.Request
 import org.http4k.core.RequestContext
 import org.http4k.core.with
 import org.http4k.lens.RequestContextLens
 import org.slf4j.MDC
-import java.util.UUID
-import java.util.regex.Pattern
 
 /**
- * Filter to append a request ID to MDC logging, and also add
- * it as an response header so the client can read it.
+ * Filter to append a request ID to MDC logging, and also add it as an response header so the client
+ * can read it.
  *
- * This helps us map an application log to a specific request,
- * so that it provides better context, and also so that log statements
- * for the same requests can be seen together.
+ * This helps us map an application log to a specific request, so that it provides better context,
+ * and also so that log statements for the same requests can be seen together.
  */
 object RequestIdMdcFilter {
   private const val MDC_KEY = "requestIdChain"
@@ -23,12 +22,13 @@ object RequestIdMdcFilter {
 
   // Source: https://stackoverflow.com/a/13653180
   private const val SINGLE_REQUEST_ID_PATTERN =
-    "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+      "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 
-  private val inputRequestIdPattern = Pattern.compile(
-    "^$SINGLE_REQUEST_ID_PATTERN(,$SINGLE_REQUEST_ID_PATTERN)*$",
-    Pattern.CASE_INSENSITIVE,
-  )
+  private val inputRequestIdPattern =
+      Pattern.compile(
+          "^$SINGLE_REQUEST_ID_PATTERN(,$SINGLE_REQUEST_ID_PATTERN)*$",
+          Pattern.CASE_INSENSITIVE,
+      )
 
   operator fun invoke(requestIdChainLens: RequestContextLens<List<UUID>>) = Filter { next ->
     { request ->
@@ -67,11 +67,9 @@ object RequestIdMdcFilter {
   fun getRequestIdChainFromMdc(): String? = MDC.get(MDC_KEY)
 
   /**
-   * Add the request ID to a [Request] so that it can be added to the
-   * chain when logging the request in the target service.
+   * Add the request ID to a [Request] so that it can be added to the chain when logging the request
+   * in the target service.
    */
   fun Request.withRequestIdChain() =
-    getRequestIdChainFromMdc()
-      ?.let { header(HEADER_NAME, it) }
-      ?: this
+      getRequestIdChainFromMdc()?.let { header(HEADER_NAME, it) } ?: this
 }

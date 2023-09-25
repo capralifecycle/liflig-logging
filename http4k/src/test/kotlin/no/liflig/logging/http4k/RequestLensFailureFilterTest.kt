@@ -14,13 +14,14 @@ import org.junit.jupiter.api.Test
 
 class RequestLensFailureFilterTest {
 
-  val filter = RequestLensFailureFilter(
-    ErrorResponseRendererWithLogging(
-      BiDiLens(mockk(), mockk()) { _, req -> req },
-      BiDiLens(mockk(), mockk()) { _, req -> req },
-      JsonErrorResponseRenderer(Jackson),
-    ),
-  )
+  val filter =
+      RequestLensFailureFilter(
+          ErrorResponseRendererWithLogging(
+              BiDiLens(mockk(), mockk()) { _, req -> req },
+              BiDiLens(mockk(), mockk()) { _, req -> req },
+              JsonErrorResponseRenderer(Jackson),
+          ),
+      )
 
   @Test
   fun `required query lens not given should give expected response`() {
@@ -31,8 +32,8 @@ class RequestLensFailureFilterTest {
 
     val response = handler(Request(Method.GET, "/"))
     verifyStringSnapshot(
-      "RequestLensFailureFilter-query-required.txt",
-      response.toString(),
+        "RequestLensFailureFilter-query-required.txt",
+        response.toString(),
     )
   }
 
@@ -45,8 +46,8 @@ class RequestLensFailureFilterTest {
 
     val response = handler(Request(Method.GET, "/?test=abc"))
     verifyStringSnapshot(
-      "RequestLensFailureFilter-query-mapping-error.txt",
-      response.toString(),
+        "RequestLensFailureFilter-query-mapping-error.txt",
+        response.toString(),
     )
   }
 }

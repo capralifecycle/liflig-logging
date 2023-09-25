@@ -21,18 +21,13 @@ import org.http4k.lens.LensFailure
  * are swallowed before it reaches the global RequestLensFailureFilter. Therefore we must also
  * provide this handler to the contract renderer so that it is called in this filter.
  *
- * E.g.
- * /path/to/api bind contract {
- *   renderer = OpenApi3(
- *     apiInfo = ApiInfo(...),
- *     errorResponseRenderer = ErrorResponseRendererWithLogging(...)
- *   )
- * }
+ * E.g. /path/to/api bind contract { renderer = OpenApi3( apiInfo = ApiInfo(...),
+ * errorResponseRenderer = ErrorResponseRendererWithLogging(...) ) }
  */
 class ErrorResponseRendererWithLogging(
-  private val errorLogLens: BiDiLens<Request, ErrorLog?>,
-  private val normalizedStatusLens: BiDiLens<Request, NormalizedStatus?>,
-  private val delegate: ErrorResponseRenderer,
+    private val errorLogLens: BiDiLens<Request, ErrorLog?>,
+    private val normalizedStatusLens: BiDiLens<Request, NormalizedStatus?>,
+    private val delegate: ErrorResponseRenderer,
 ) : ErrorResponseRenderer {
   override fun badRequest(lensFailure: LensFailure): Response {
     val target = lensFailure.target

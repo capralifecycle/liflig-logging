@@ -6,13 +6,12 @@ import org.http4k.core.Status
 import org.slf4j.LoggerFactory
 
 /**
- * Filter to avoid leaking exceptions to the client. This does not store anything on context
- * but logs the error and returns an 500 error.
+ * Filter to avoid leaking exceptions to the client. This does not store anything on context but
+ * logs the error and returns an 500 error.
  *
- * This filter is a last resort and should generally only be triggered on some other
- * failure to properly handle an error. This is because if an exception propagates
- * pass this filter and to Jetty, it will be shown to the client with a Jetty-specific
- * response.
+ * This filter is a last resort and should generally only be triggered on some other failure to
+ * properly handle an error. This is because if an exception propagates pass this filter and to
+ * Jetty, it will be shown to the client with a Jetty-specific response.
  */
 object CatchAllExceptionFilter {
   private val logger = LoggerFactory.getLogger(CatchAllExceptionFilter.javaClass)
