@@ -76,7 +76,7 @@ jobs:
           fi
           if [ "$release" = "true" ]; then
             # Release to GitHub Packages
-            mvn -B source:jar deploy -DaltReleaseDeploymentRepository="github::default::https://maven.pkg.github.com/capralifecycle/liflig-logging" -Drevision="$tag" -Dtag="$tag"
+            mvn -B source:jar deploy scm:tag -DaltReleaseDeploymentRepository="github::default::https://maven.pkg.github.com/capralifecycle/liflig-logging" -Drevision="$tag" -Dtag="$tag"
           else
             mvn -B source:jar verify -Drevision="$tag" -Dtag="$tag"
           fi
