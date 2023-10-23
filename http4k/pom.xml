@@ -34,7 +34,7 @@
     <dependency>
       <groupId>org.http4k</groupId>
       <artifactId>http4k-core</artifactId>
-      <version>4.48.0.0</version>
+      <version>5.8.6.0</version>
     </dependency>
     <dependency>
       <groupId>org.http4k</groupId>
