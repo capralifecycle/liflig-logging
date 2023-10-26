@@ -28,7 +28,6 @@
       <groupId>org.jetbrains.kotlinx</groupId>
       <artifactId>kotlinx-serialization-json</artifactId>
       <version>${kotlinx-serialization.version}</version>
-      <type>pom</type>
     </dependency>
 
     <dependency>
