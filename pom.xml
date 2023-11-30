@@ -23,7 +23,7 @@
 
     <kotlin.version>1.7.22</kotlin.version>
     <kotlinx-serialization.version>1.5.1</kotlinx-serialization.version>
-    <spotless-maven-plugin.version>2.40.0</spotless-maven-plugin.version>
+    <spotless-maven-plugin.version>2.41.0</spotless-maven-plugin.version>
   </properties>
 
   <scm>
