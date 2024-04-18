@@ -13,6 +13,7 @@ import org.http4k.lens.BiDiLens
  * Internal Server Error` for all exceptions, except jetty EofException which returns `400 Bad
  * Request`.
  */
+@Deprecated("Replace usage with liflig-http4k-setup")
 object ErrorHandlerFilter {
   operator fun invoke(errorLogLens: BiDiLens<Request, ErrorLog?>) = Filter { next ->
     { request ->

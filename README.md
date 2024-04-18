@@ -1,5 +1,7 @@
 # liflig-logging
 
+## Note! This library har been replaced by https://github.com/capralifecycle/liflig-http4k-setup
+
 Kotlin library to consistently produce HTTP logs from Liflig-services.
 
 This library is currently only distributed in Liflig

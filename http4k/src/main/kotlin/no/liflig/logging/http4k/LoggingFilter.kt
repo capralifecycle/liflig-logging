@@ -26,6 +26,7 @@ import org.slf4j.event.Level
 import org.slf4j.helpers.NOPLogger
 
 /** Filter to handle request logging. */
+@Deprecated("Replace usage with liflig-http4k-setup")
 object LoggingFilter {
   private val logger = LoggerFactory.getLogger(LoggingFilter.javaClass)
 

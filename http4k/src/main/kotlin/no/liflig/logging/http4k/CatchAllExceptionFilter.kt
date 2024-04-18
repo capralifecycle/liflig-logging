@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory
  * properly handle an error. This is because if an exception propagates pass this filter and to
  * Jetty, it will be shown to the client with a Jetty-specific response.
  */
+@Deprecated("Replace usage with liflig-http4k-setup")
 object CatchAllExceptionFilter {
   private val logger = LoggerFactory.getLogger(CatchAllExceptionFilter.javaClass)
 

@@ -16,6 +16,7 @@ import org.slf4j.MDC
  * This helps us map an application log to a specific request, so that it provides better context,
  * and also so that log statements for the same requests can be seen together.
  */
+@Deprecated("Replace usage with liflig-http4k-setup")
 object RequestIdMdcFilter {
   private const val MDC_KEY = "requestIdChain"
   private const val HEADER_NAME = "x-request-id"
