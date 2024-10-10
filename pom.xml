@@ -21,7 +21,7 @@
     -->
     <kotlin.code.style>official</kotlin.code.style>
 
-    <kotlin.version>1.7.22</kotlin.version>
+    <kotlin.version>2.0.21</kotlin.version>
     <kotlinx-serialization.version>1.5.1</kotlinx-serialization.version>
     <spotless-maven-plugin.version>2.43.0</spotless-maven-plugin.version>
   </properties>
