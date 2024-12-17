@@ -133,6 +133,13 @@
     </repository>
   </repositories>
 
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/capralifecycle/liflig-logging</url>
+    </repository>
+  </distributionManagement>
+
   <build>
     <sourceDirectory>src/main/kotlin</sourceDirectory>
     <testSourceDirectory>src/test/kotlin</testSourceDirectory>
