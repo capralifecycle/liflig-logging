@@ -1,48 +1,113 @@
 # liflig-logging
 
-## Note! This library har been replaced by https://github.com/capralifecycle/liflig-http4k-setup
+Logging library for Kotlin JVM, that thinly wraps SLF4J and Logback to provide a more ergonomic API,
+and to use `kotlinx.serialization` for log marker serialization instead of Jackson.
 
-Kotlin library to consistently produce HTTP logs from Liflig-services.
+**Contents:**
 
-This library is currently only distributed in Liflig
-internal repositories.
+- [Usage](#usage)
+  - [Setting up with Logback](#setting-up-with-logback)
+- [Implementation](#implementation)
+- [Credits](#credits)
 
-## Contributing
+## Usage
 
-This project follows
-https://confluence.capraconsulting.no/x/fckBC
+The `Logger` class is the entry point to `liflig-logging`'s API. You can construct a `Logger`
+by providing an empty lambda, which automatically gives the logger the name of its containing class
+(or file, if defined at the top level).
 
-To check build before pushing:
+```kotlin
+// File Example.kt
+package com.example
 
-```bash
-mvn verify
+import no.liflig.logging.Logger
+
+// Gets the name "com.example.Example"
+private val log = Logger {}
 ```
 
-The CI server will automatically release new version for builds on master.
+`Logger` provides methods for logging at various log levels (`info`, `warn`, `error`, `debug` and
+`trace`). The methods take a lambda to construct the log, which is only called if the log level is
+enabled (see [Implementation](#implementation) for how this is done efficiently).
 
-## Linting
+```kotlin
+fun example() {
+  log.info { "Example message" }
+}
+```
 
-This project uses ktfmt along with spotless to lint the kotlin code.
+You can also add _log markers_ (structured key-value data) to your logs. The `addMarker` method uses
+`kotlinx.serialization` to serialize the value.
 
-Only check lint: `mvn spotless:check`
+```kotlin
+import kotlinx.serialization.Serializable
 
-Fix: `mvn spotless:apply`
+@Serializable data class User(val id: Long, val name: String)
 
-For IntelliJ you may use the "ktfmt"-plugin in order to consolidate with its "reformat"-tool:
-https://plugins.jetbrains.com/plugin/14912-ktfmt
+fun example() {
+  val user = User(id = 1, name = "John Doe")
 
-## Using the library
+  log.info {
+    addMarker("user", user)
+    "Registered new user"
+  }
+}
+```
 
-Requirements:
+This will give the following log output (if outputting logs as JSON with
+`logstash-logback-encoder`):
 
-- Using Logback for logging with SLF4J
-- Using http4k
-- Kotlin with Kotlinx Serialization
+```jsonc
+{ "message": "Registered new user", "user": { "id": 1, "name": "John Doe" } }
+```
 
-For convenience, this library also contains some filters for basic
-error handling.
+If you want to add markers to all logs within a scope, you can use `withLoggingContext`:
 
-### Example logback.xml
+```kotlin
+import no.liflig.logging.marker
+import no.liflig.logging.withLoggingContext
+
+fun processEvent(event: Event) {
+  withLoggingContext(marker("event", event)) {
+    log.debug { "Started processing event" }
+    // ...
+    log.debug { "Finished processing event" }
+  }
+}
+```
+
+...giving the following output:
+
+```jsonc
+{ "message": "Started processing event", "event": { /* ... */ } }
+{ "message": "Finished processing event", "event": { /* ... */ } }
+```
+
+Note that `withLoggingContext` uses a thread-local to provide markers to the scope, so it won't work
+with Kotlin coroutines and `suspend` functions (though it does work with Java virtual threads). An
+alternative that supports coroutines may be added in a future version of the library.
+
+Finally, you can attach a `cause` exception to logs:
+
+```kotlin
+fun example(user: User) {
+  try {
+    storeUser(user)
+  } catch (e: Exception) {
+    log.error {
+      cause = e
+      addMarker("user", user)
+      "Failed to store user in database"
+    }
+  }
+}
+```
+
+### Setting up with Logback
+
+This library is designed to work with Logback and the
+[`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder) for JSON output.
+You can configure this logger by creating a `logback.xml` file under `src/main/resources`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -57,106 +122,50 @@ error handling.
 </configuration>
 ```
 
-### Adding the filters to an application
+See the [Usage docs](https://github.com/logfellow/logstash-logback-encoder#usage) for
+`logstash-logback-encoder` for more configuration options.
 
-Create a class that extends `no.liflig.logging.PrincipalLog` that
-can be used to hold details about the principal:
+## Implementation
 
-```kotlin
-@Serializable
-data class MyPrincipalLog(
-  val id: String,
-) : PrincipalLog
+All the methods on `Logger` are `inline`, and don't do anything if the log level is disabled - so
+you only pay for marker serialization and log message concatenation if it's actually logged.
+
+Elsewhere in the library, we use inline value classes to wrap Logback APIs, to get as close as
+possible to a zero-cost abstraction.
+
+## Credits
+
+v2 of the library is a fork of [hermannm/devlog-kotlin](https://github.com/hermannm/devlog-kotlin),
+to make maintenance and distribution by Liflig easier. Licensed under MIT:
+
+```
+MIT License
+
+Copyright (c) 2024 Hermann Mørkrid <https://hermannm.dev>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
-Add filters to chain:
-
-```kotlin
-val contexts = RequestContexts()
-
-val requestIdChainLens = createRequestIdChainLens(contexts)
-val errorLogLens = createErrorLogLens(contexts)
-val normalizedStatusLens = createNormalizedStatusLens(contexts)
-
-val errorResponseRenderer = ErrorResponseRendererWithLogging(
-  errorLogLens,
-  normalizedStatusLens,
-  JsonErrorResponseRenderer(Jackson),
-)
-
-val principalLog = { request: Request ->
-  // Hook into however you store the principal and
-  // map it to an instance of your MyPrincipalLog.
-  principalLens(request)?.toLog()
-}
-
-val filters = ServerFilters
-  .InitialiseRequestContext(contexts)
-  .then(RequestIdMdcFilter(requestIdChainLens))
-  .then(CatchAllExceptionFilter())
-  .then(
-    LoggingFilter(
-      principalLog,
-      errorLogLens,
-      normalizedStatusLens,
-      requestIdChainLens,
-      LoggingFilter.createLogHandler(
-        printStacktraceToConsole = false,
-        principalLogSerializer = MyPrincipalLog.serializer(),
-      ),
-    ),
-  )
-  // <-- CORS filter here
-  .then(ErrorHandlerFilter(errorLogLens))
-  .then(RequestLensFailureFilter(errorResponseRenderer))
-  // Rest of your filters/handlers.
-```
-
-Requests will now be logged as JSON to stdout. See `Http4kTest.kt` for
-a full demo, including correct setup for using http4k contracts that
-requires more configuration to log lens errors.
-
-Example log line:
-
-```json
-{
-  "@timestamp": "2021-04-26T04:06:07.558+02:00",
-  "@version": "1",
-  "message": "HTTP request (200) (18 ms): GET /",
-  "logger_name": "no.liflig.logging.http4k.LoggingFilter",
-  "thread_name": "main",
-  "level": "INFO",
-  "level_value": 20000,
-  "requestIdChain": "41687ab9-c76e-45de-bccc-eebf9683f695",
-  "requestInfo": {
-    "timestamp": "2021-04-26T02:06:07.430307Z",
-    "requestId": "41687ab9-c76e-45de-bccc-eebf9683f695",
-    "requestIdChain": ["41687ab9-c76e-45de-bccc-eebf9683f695"],
-    "request": {
-      "timestamp": "2021-04-26T02:06:07.409573Z",
-      "method": "GET",
-      "uri": "/",
-      "headers": [
-        {
-          "name": "x-http4k-context",
-          "value": "41687ab9-c76e-45de-bccc-eebf9683f695"
-        }
-      ],
-      "size": 0,
-      "body": ""
-    },
-    "response": {
-      "timestamp": "2021-04-26T02:06:07.427743Z",
-      "statusCode": 200,
-      "headers": [],
-      "size": 0,
-      "body": ""
-    },
-    "principal": { "id": "dummy-principal" },
-    "durationMs": 18,
-    "throwable": null,
-    "status": { "code": "OK" },
-    "thread": "main"
-  }
-}
-```
+Credits also go to the
+[kotlin-logging library by Ohad Shai](https://github.com/oshai/kotlin-logging) (licensed under
+[Apache 2.0](https://github.com/oshai/kotlin-logging/blob/c91fe6ab71b9d3470fae71fb28c453006de4e584/LICENSE)),
+which inspired the `Logger {}` syntax using a lambda to get the logger name.
+[This kotlin-logging issue](https://github.com/oshai/kotlin-logging/issues/34) (by
+[kosiakk](https://github.com/kosiakk)) also inspired the implementation using `inline` methods for
+minimal overhead.

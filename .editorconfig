@@ -1,4 +1,5 @@
 # http://editorconfig.org
+
 root = true
 
 [*]
@@ -9,7 +10,12 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-# This .editorconfig section approximates ktfmt's formatting rules.
+[*.md]
+# Markdown uses double trailing whitespaces as special chars to force newlines
+trim_trailing_whitespace = false
+max_line_length = 100
+
+# Approximates ktfmt's formatting rules.
 [{*.kt,*.kts}]
 max_line_length = 100
 ij_continuation_indent_size = 4
@@ -47,7 +53,6 @@ ij_kotlin_field_annotation_wrap = split_into_lines
 ij_kotlin_finally_on_new_line = false
 ij_kotlin_if_rparen_on_new_line = false
 ij_kotlin_import_nested_classes = false
-ij_kotlin_imports_layout = *
 ij_kotlin_insert_whitespaces_in_simple_one_line_method = true
 ij_kotlin_keep_blank_lines_before_right_brace = 2
 ij_kotlin_keep_blank_lines_in_code = 2
@@ -93,7 +98,3 @@ ij_kotlin_while_on_new_line = false
 ij_kotlin_wrap_elvis_expressions = 1
 ij_kotlin_wrap_expression_body_functions = 1
 ij_kotlin_wrap_first_method_in_call_chain = false
-
-[*.md]
-# Markdown uses double trailing whitespaces as special chars to force newlines
-trim_trailing_whitespace = false

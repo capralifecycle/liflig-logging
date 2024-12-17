@@ -1,4 +1,0 @@
-HTTP/1.1 400 Bad Request
-content-type: application/json; charset=utf-8
-
-{"message":"Missing/invalid parameters","params":[{"name":"test","type":"query","datatype":"string","required":true,"reason":"Missing"}]}
