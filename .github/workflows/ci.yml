@@ -6,77 +6,72 @@ on:
 
 defaults:
   run:
-    shell: bash
+    # NOTE: A bit stricter than the default bash options used by GitHub Actions
+    shell: bash --noprofile --norc -euo pipefail {0}
 
 jobs:
-  get-runner-user:
+  build-and-release:
     runs-on: ubuntu-22.04
-    outputs:
-      uid_gid: ${{ steps.get-user.outputs.uid_gid }}
-    steps:
-      - id: get-user
-        run: echo "uid_gid=$(id -u):$(id -g)" >> "$GITHUB_OUTPUT"
-  build-and-deploy:
-    needs: get-runner-user
-    runs-on: ubuntu-22.04
-    container:
-      image: "public.ecr.aws/z8l5l4v4/buildtools/tool/maven:3-jdk-11-alpine"
-      options: --user ${{ needs.get-runner-user.outputs.uid_gid }}
     permissions:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-      - uses: actions/cache@e12d46a63a90f2fae62d114769bbf2a179198b5c # v3.3.3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-java@8df1039502a15bceb9433410b1a100fbe190c53b # v4.5.0
+        with:
+          distribution: "zulu"
+          java-version: "17.0.10"
+          java-package: "jdk"
+
+      - uses: capralifecycle/actions-lib/check-runtime-dependencies@a6d9e4b11cdae620cc8e7fcc121de8466f6cfde9 # v1.6.0
+
+      - name: cache mvn
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: maven-
-      - name: store branch name in environment
-        run: echo "BRANCH_NAME=$(echo ${GITHUB_REF##*/})" >> "$GITHUB_ENV"
-      - name: git config
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: release preparation
+        id: prep
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      - name: configure maven
-        run: |
-          mkdir -p "$HOME/.m2"
-          cat <<EOF > "$HOME/.m2/settings.xml"
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>\${env.GITHUB_ACTOR}</username>
-                <password>\${env.GITHUB_TOKEN}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
+          major_version="$(sed -n "s/^.*<major-version>\([0-9]\{1,\}\)<\/major-version>.*$/\1/p" pom.xml)"
+          echo "$major_version" | grep -q "^[0-9]\{1,\}$" || {
+            echo "ERROR: Failed to extract <major-version> from pom.xml"
+            exit 1
+          }
+          echo "major-version=$major_version" >> "$GITHUB_OUTPUT"
+
+      - uses: capralifecycle/actions-lib/generate-tag@a6d9e4b11cdae620cc8e7fcc121de8466f6cfde9 # v1.6.0
+        id: tag
+        with:
+          tag-prefix: "${{ steps.prep.outputs.major-version }}"
+          tag-type: "punctuated-timestamp-tag"
+
+      - name: resolve dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B dependency:resolve
+
       - name: conditional release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          export MAVEN_OPTS="-Duser.home=$HOME" # Home directory not automatically picked up for some reason
-          major_version="$(sed -n "s/^.*<major-version>\([0-9]\{1,\}\)<\/major-version>.*$/\1/p" pom.xml)"
-          date="$(date -u "+%Y%m%d.%H%M%S")"
-          tag="$major_version.$date"
-          printf "Tag to use for potential release: %s\n" "$tag"
-          mvn -B org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M3:enforce -Drules=requireReleaseDeps
+          SONAR_TOKEN: ${{ secrets.SHARED_SONAR_TOKEN }}
+          CONDITIONAL_RELEASE: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+          TAG: "${{ steps.tag.outputs.tag }}"
 
-          release="false"
-          git fetch --tags
-          if [ "$BRANCH_NAME" = "master" ]; then
-            latest_tag="$(git describe --abbrev=0 || true)"
-            latest_tag_commit="$(if test -n "$latest_tag"; then git rev-parse "$latest_tag^{}"; fi)"
-            if [ ! "$latest_tag_commit" = "$GITHUB_SHA" ]; then
-              release="true"
-            fi
-          fi
-          if [ "$release" = "true" ]; then
-            # Release to GitHub Packages
-            mvn -B source:jar deploy scm:tag -DaltReleaseDeploymentRepository="github::default::https://maven.pkg.github.com/capralifecycle/liflig-logging" -Drevision="$tag" -Dtag="$tag"
+        run: |
+          if [ "$CONDITIONAL_RELEASE" = "true" ]; then
+            echo "Releasing library with tag '$TAG'"
+            # NOTE: Customize commands according to your project's needs, e.g.:
+            # mvn -B sonar:sonar sourceCjar deploy scm:tag -P gh-actions-build -DGIT_COMMIT_ID="$GITHUB_SHA" \
+            #   org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M3:enforce -Drules=requireReleaseDeps
+            mvn -B source:jar deploy scm:tag -Drevision="$TAG" -Dtag="$TAG" \
+              org.apache.maven.plugins:maven-enforcer-plugin:3.0.0-M3:enforce -Drules=requireReleaseDeps
           else
-            mvn -B source:jar verify -Drevision="$tag" -Dtag="$tag"
+            mvn -B -U verify
           fi
