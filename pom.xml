@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>no.liflig</groupId>
-  <artifactId>liflig-logging-parent</artifactId>
+  <artifactId>liflig-logging</artifactId>
   <version>${revision}</version>
   <packaging>jar</packaging>
 
