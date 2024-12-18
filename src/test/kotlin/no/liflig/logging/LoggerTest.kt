@@ -36,10 +36,10 @@ internal class LoggerTest {
 
   @Test
   fun `info log`() {
-    testLogFunction(LogLevel.INFO) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.INFO) { message, exception, key, value ->
       log.info {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -47,10 +47,10 @@ internal class LoggerTest {
 
   @Test
   fun `warn log`() {
-    testLogFunction(LogLevel.WARN) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.WARN) { message, exception, key, value ->
       log.warn {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -58,10 +58,10 @@ internal class LoggerTest {
 
   @Test
   fun `error log`() {
-    testLogFunction(LogLevel.ERROR) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.ERROR) { message, exception, key, value ->
       log.error {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -69,10 +69,10 @@ internal class LoggerTest {
 
   @Test
   fun `debug log`() {
-    testLogFunction(LogLevel.DEBUG) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.DEBUG) { message, exception, key, value ->
       log.debug {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -80,10 +80,10 @@ internal class LoggerTest {
 
   @Test
   fun `trace log`() {
-    testLogFunction(LogLevel.TRACE) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.TRACE) { message, exception, key, value ->
       log.trace {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -91,10 +91,10 @@ internal class LoggerTest {
 
   @Test
   fun `info log using 'at' method`() {
-    testLogFunction(LogLevel.INFO) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.INFO) { message, exception, key, value ->
       log.at(LogLevel.INFO) {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -102,10 +102,10 @@ internal class LoggerTest {
 
   @Test
   fun `warn log using 'at' method`() {
-    testLogFunction(LogLevel.WARN) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.WARN) { message, exception, key, value ->
       log.at(LogLevel.WARN) {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -113,10 +113,10 @@ internal class LoggerTest {
 
   @Test
   fun `error log using 'at' method`() {
-    testLogFunction(LogLevel.ERROR) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.ERROR) { message, exception, key, value ->
       log.at(LogLevel.ERROR) {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -124,10 +124,10 @@ internal class LoggerTest {
 
   @Test
   fun `debug log using 'at' method`() {
-    testLogFunction(LogLevel.DEBUG) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.DEBUG) { message, exception, key, value ->
       log.at(LogLevel.DEBUG) {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
@@ -135,21 +135,21 @@ internal class LoggerTest {
 
   @Test
   fun `trace log using 'at' method`() {
-    testLogFunction(LogLevel.TRACE) { message, exception, markerKey, markerValue ->
+    testLogFunction(LogLevel.TRACE) { message, exception, key, value ->
       log.at(LogLevel.TRACE) {
         cause = exception
-        addMarker(markerKey, markerValue)
+        addField(key, value)
         message
       }
     }
   }
 
   /**
-   * We test logs with marker + cause exception above, but we also want to make sure that just
+   * We test logs with field + cause exception above, but we also want to make sure that just
    * logging a message by itself works.
    */
   @Test
-  fun `log with no markers or exceptions`() {
+  fun `log with no fields or exceptions`() {
     log.info { "Test" }
 
     logAppender.list shouldHaveSize 1
@@ -234,14 +234,14 @@ internal class LoggerTest {
 
   private fun testLogFunction(
       logLevel: LogLevel,
-      // (message, cause exception, marker key, marker value)
+      // (message, cause exception, field key, field value)
       logFunction: (String, Exception, String, String) -> Unit
   ) {
     val message = "Test message"
-    val markerKey = "key"
-    val markerValue = "value"
+    val fieldKey = "key"
+    val fieldValue = "value"
     val exception = Exception("Something went wrong")
-    logFunction(message, exception, markerKey, markerValue)
+    logFunction(message, exception, fieldKey, fieldValue)
 
     logAppender.list shouldHaveSize 1
     val logEvent = logAppender.list.first()
@@ -251,13 +251,9 @@ internal class LoggerTest {
     logEvent.loggerName shouldBe testLoggerName
 
     logEvent.markerList shouldHaveSize 1
-    val marker = logEvent.markerList.first()
-    val logstashMarker = marker.shouldBeInstanceOf<ObjectAppendingMarker>()
-    logstashMarker.fieldName shouldBe markerKey
-
-    val fakeJsonGenerator = FakeJsonGenerator()
-    logstashMarker.writeTo(fakeJsonGenerator)
-    fakeJsonGenerator.obj shouldBe markerValue
+    val logstashField = logEvent.markerList.first().shouldBeInstanceOf<ObjectAppendingMarker>()
+    logstashField.fieldName shouldBe fieldKey
+    logstashField shouldBe ObjectAppendingMarker(fieldKey, fieldValue)
   }
 
   private val loggerConstructedInsideClass = Logger {}

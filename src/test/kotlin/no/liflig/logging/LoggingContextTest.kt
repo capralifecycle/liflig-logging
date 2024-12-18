@@ -7,16 +7,16 @@ private val log = Logger {}
 
 class LoggingContextTest {
   @Test
-  fun `marker from logging context is included in log`() {
-    val markers = captureLogMarkers {
+  fun `field from logging context is included in log`() {
+    val logFields = captureLogFields {
       withLoggingContext(
-          marker("key", "value"),
+          field("key", "value"),
       ) {
         log.info { "Test" }
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "key":"value"
         """
@@ -25,16 +25,16 @@ class LoggingContextTest {
 
   @Test
   fun `logging context applies to all logs in scope`() {
-    val markers = arrayOfNulls<String>(2)
+    val logFields = arrayOfNulls<String>(2)
 
     withLoggingContext(
-        marker("key", "value"),
+        field("key", "value"),
     ) {
-      markers[0] = captureLogMarkers { log.info { "Test" } }
-      markers[1] = captureLogMarkers { log.info { "Test 2" } }
+      logFields[0] = captureLogFields { log.info { "Test" } }
+      logFields[1] = captureLogFields { log.info { "Test 2" } }
     }
 
-    markers.forEach {
+    logFields.forEach {
       it shouldBe
           """
             "key":"value"
@@ -44,14 +44,18 @@ class LoggingContextTest {
   }
 
   @Test
-  fun `rawJsonMarker works with logging context`() {
+  fun `rawJsonField works with logging context`() {
     val userJson = """{"id":1,"name":"John Doe"}"""
 
-    val markers = captureLogMarkers {
-      withLoggingContext(rawJsonMarker("user", userJson)) { log.info { "Test" } }
+    val logFields = captureLogFields {
+      withLoggingContext(
+          rawJsonField("user", userJson),
+      ) {
+        log.info { "Test" }
+      }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "user":${userJson}
         """
@@ -61,63 +65,63 @@ class LoggingContextTest {
   @Test
   fun `logging context does not apply to logs outside scope`() {
     withLoggingContext(
-        marker("key", "value"),
+        field("key", "value"),
     ) {
       log.info { "Inside scope" }
     }
 
-    val markers = captureLogMarkers { log.info { "Outside scope" } }
-    markers shouldBe ""
+    val logFields = captureLogFields { log.info { "Outside scope" } }
+    logFields shouldBe ""
   }
 
   @Test
-  fun `multiple context markers combined with log marker have expected order`() {
-    val markers = captureLogMarkers {
+  fun `multiple context fields combined with log event field have expected order`() {
+    val logFields = captureLogFields {
       withLoggingContext(
-          marker("contextMarker1", "value"),
-          marker("contextMarker2", "value"),
+          field("contextField1", "value"),
+          field("contextField2", "value"),
       ) {
         log.info {
-          addMarker("logMarker", "value")
+          addField("logEventField", "value")
           "Test"
         }
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
-          "logMarker":"value","contextMarker1":"value","contextMarker2":"value"
+          "logEventField":"value","contextField1":"value","contextField2":"value"
         """
             .trimIndent()
   }
 
   @Test
-  fun `duplicate context markers only includes the newest marker`() {
-    var markersFromInnerContext: String? = null
-    // We want to verify that after exiting the inner logging context, the markers from the outer
+  fun `duplicate context field keys only includes the newest fields`() {
+    var fieldsFromInnerContext: String? = null
+    // We want to verify that after exiting the inner logging context, the fields from the outer
     // context are used again
-    var markersFromOuterContext: String? = null
+    var fieldsFromOuterContext: String? = null
 
     withLoggingContext(
-        marker("duplicateKey", "outer"),
+        field("duplicateKey", "outer"),
     ) {
       withLoggingContext(
-          marker("duplicateKey", "inner1"),
-          marker("duplicateKey", "inner2"),
+          field("duplicateKey", "inner1"),
+          field("duplicateKey", "inner2"),
       ) {
-        markersFromInnerContext = captureLogMarkers { log.info { "Test" } }
+        fieldsFromInnerContext = captureLogFields { log.info { "Test" } }
       }
 
-      markersFromOuterContext = captureLogMarkers { log.info { "Test" } }
+      fieldsFromOuterContext = captureLogFields { log.info { "Test" } }
     }
 
-    markersFromInnerContext shouldBe
+    fieldsFromInnerContext shouldBe
         """
           "duplicateKey":"inner1"
         """
             .trimIndent()
 
-    markersFromOuterContext shouldBe
+    fieldsFromOuterContext shouldBe
         """
           "duplicateKey":"outer"
         """
@@ -125,23 +129,23 @@ class LoggingContextTest {
   }
 
   /**
-   * Priority for duplicate keys in log markers is Log event -> Exception -> Context, so log event
-   * marker should override context marker.
+   * Priority for duplicate keys in log fields is Log event -> Exception -> Context, so log event
+   * field should override context field.
    */
   @Test
-  fun `context marker does not override duplicate log event marker`() {
-    val markers = captureLogMarkers {
+  fun `context field does not override duplicate log event field`() {
+    val logFields = captureLogFields {
       withLoggingContext(
-          marker("duplicateKey", "from context"),
+          field("duplicateKey", "from context"),
       ) {
         log.info {
-          addMarker("duplicateKey", "from log event")
+          addField("duplicateKey", "from log event")
           "Test"
         }
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "duplicateKey":"from log event"
         """

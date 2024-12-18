@@ -1,7 +1,6 @@
 # liflig-logging
 
-Logging library for Kotlin JVM, that thinly wraps SLF4J and Logback to provide a more ergonomic API,
-and to use `kotlinx.serialization` for log marker serialization instead of Jackson.
+Logging library for Kotlin JVM, that thinly wraps SLF4J and Logback to provide a more ergonomic API.
 
 **Contents:**
 
@@ -12,9 +11,9 @@ and to use `kotlinx.serialization` for log marker serialization instead of Jacks
 
 ## Usage
 
-The `Logger` class is the entry point to `liflig-logging`'s API. You can construct a `Logger`
-by providing an empty lambda, which automatically gives the logger the name of its containing class
-(or file, if defined at the top level).
+The `Logger` class is the entry point to `liflig-logging`'s logging API. You can construct a
+`Logger` by providing an empty lambda, which automatically gives the logger the name of its
+containing class (or file, if defined at the top level).
 
 ```kotlin
 // File Example.kt
@@ -36,7 +35,7 @@ fun example() {
 }
 ```
 
-You can also add _log markers_ (structured key-value data) to your logs. The `addMarker` method uses
+You can also add _fields_ (structured key-value data) to your logs. The `addField` method uses
 `kotlinx.serialization` to serialize the value.
 
 ```kotlin
@@ -48,27 +47,37 @@ fun example() {
   val user = User(id = 1, name = "John Doe")
 
   log.info {
-    addMarker("user", user)
+    addField("user", user)
     "Registered new user"
   }
 }
 ```
 
-This will give the following log output (if outputting logs as JSON with
-`logstash-logback-encoder`):
+When outputting logs as JSON (using [`logstash-logback-encoder`](#setting-up-with-logback)), the
+key/value given to `addField` is added to the logged JSON object (see below). This allows you to
+filter and query on the field in the log analysis tool of your choice, in a more structured manner
+than if you were to just use string concatenation.
 
+<!-- prettier-ignore -->
 ```jsonc
-{ "message": "Registered new user", "user": { "id": 1, "name": "John Doe" } }
+{
+  "message": "Registered new user",
+  "user": {
+    "id": 1,
+    "name": "John Doe"
+  },
+  // ...timestamp etc.
+}
 ```
 
-If you want to add markers to all logs within a scope, you can use `withLoggingContext`:
+If you want to add fields to all logs within a scope, you can use `withLoggingContext`:
 
 ```kotlin
-import no.liflig.logging.marker
+import no.liflig.logging.field
 import no.liflig.logging.withLoggingContext
 
 fun processEvent(event: Event) {
-  withLoggingContext(marker("event", event)) {
+  withLoggingContext(field("event", event)) {
     log.debug { "Started processing event" }
     // ...
     log.debug { "Finished processing event" }
@@ -83,21 +92,20 @@ fun processEvent(event: Event) {
 { "message": "Finished processing event", "event": { /* ... */ } }
 ```
 
-Note that `withLoggingContext` uses a thread-local to provide markers to the scope, so it won't work
-with Kotlin coroutines and `suspend` functions (though it does work with Java virtual threads). An
-alternative that supports coroutines may be added in a future version of the library.
+Note that `withLoggingContext` uses a thread-local to provide log fields to the scope, so it won't
+work with Kotlin coroutines and `suspend` functions (though it does work with Java virtual threads).
+An alternative that supports coroutines may be added in a future version of the library.
 
 Finally, you can attach a `cause` exception to logs:
 
 ```kotlin
-fun example(user: User) {
+fun example() {
   try {
-    storeUser(user)
+    callExternalService()
   } catch (e: Exception) {
     log.error {
       cause = e
-      addMarker("user", user)
-      "Failed to store user in database"
+      "Request to external service failed"
     }
   }
 }
@@ -127,16 +135,19 @@ See the [Usage docs](https://github.com/logfellow/logstash-logback-encoder#usage
 
 ## Implementation
 
-All the methods on `Logger` are `inline`, and don't do anything if the log level is disabled - so
-you only pay for marker serialization and log message concatenation if it's actually logged.
-
-Elsewhere in the library, we use inline value classes to wrap Logback APIs, to get as close as
-possible to a zero-cost abstraction.
+- All the methods on `Logger` take a lambda argument to build the log, which is only called if the
+  log level is enabled - so you only pay for log field serialization and message concatenation if
+  it's actually logged.
+- `Logger`'s methods are also `inline`, so we avoid the cost of allocating a function object for the
+  lambda argument.
+- Elsewhere in the library, we use inline value classes when wrapping Logback APIs, to get as close
+  as possible to a zero-cost abstraction.
 
 ## Credits
 
-v2 of the library is a fork of [hermannm/devlog-kotlin](https://github.com/hermannm/devlog-kotlin),
-to make maintenance and distribution by Liflig easier. Licensed under MIT:
+v2 of the library is a fork of
+[`hermannm/devlog-kotlin`](https://github.com/hermannm/devlog-kotlin), to make maintenance and
+distribution by Liflig easier. `devlog-kotlin` is licensed under MIT:
 
 ```
 MIT License

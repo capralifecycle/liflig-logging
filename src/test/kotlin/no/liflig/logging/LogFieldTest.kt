@@ -16,17 +16,17 @@ import org.junit.jupiter.api.Test
 
 private val log = Logger {}
 
-class LogMarkerTest {
+class LogFieldTest {
   @Test
-  fun `basic log marker test`() {
-    val markers = captureLogMarkers {
+  fun `basic log field test`() {
+    val logFields = captureLogFields {
       log.info {
-        addMarker("key", "value")
+        addField("key", "value")
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "key":"value"
         """
@@ -34,19 +34,19 @@ class LogMarkerTest {
   }
 
   @Test
-  fun `log marker with Serializable object`() {
+  fun `log field with Serializable object`() {
     @Serializable data class User(val id: Int, val name: String)
 
     val user = User(id = 1, name = "John Doe")
 
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addMarker("user", user)
+        addField("user", user)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "user":{"id":1,"name":"John Doe"}
         """
@@ -54,17 +54,17 @@ class LogMarkerTest {
   }
 
   @Test
-  fun `multiple log markers`() {
-    val markers = captureLogMarkers {
+  fun `multiple log fields`() {
+    val logFields = captureLogFields {
       log.info {
-        addMarker("first", true)
-        addMarker("second", listOf("value1", "value2"))
-        addMarker("third", 10)
+        addField("first", true)
+        addField("second", listOf("value1", "value2"))
+        addField("third", 10)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "first":true,"second":["value1","value2"],"third":10
         """
@@ -73,22 +73,22 @@ class LogMarkerTest {
 
   @Test
   fun `special-case types`() {
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addMarker("instant", Instant.parse("2024-12-09T16:38:23Z"))
-        addMarker("uri", URI.create("https://example.com"))
-        addMarker("url", URL("https://example.com"))
-        addMarker("uuid", UUID.fromString("3638dd04-d196-41ad-8b15-5188a22a6ba4"))
-        addMarker("bigDecimal", BigDecimal("100.0"))
+        addField("instant", Instant.parse("2024-12-09T16:38:23Z"))
+        addField("uri", URI.create("https://example.com"))
+        addField("url", URL("https://example.com"))
+        addField("uuid", UUID.fromString("3638dd04-d196-41ad-8b15-5188a22a6ba4"))
+        addField("bigDecimal", BigDecimal("100.0"))
         "Test"
       }
     }
 
-    markers shouldContain """"instant":"2024-12-09T16:38:23Z""""
-    markers shouldContain """"uri":"https://example.com""""
-    markers shouldContain """"url":"https://example.com""""
-    markers shouldContain """"uuid":"3638dd04-d196-41ad-8b15-5188a22a6ba4""""
-    markers shouldContain """"bigDecimal":"100.0""""
+    logFields shouldContain """"instant":"2024-12-09T16:38:23Z""""
+    logFields shouldContain """"uri":"https://example.com""""
+    logFields shouldContain """"url":"https://example.com""""
+    logFields shouldContain """"uuid":"3638dd04-d196-41ad-8b15-5188a22a6ba4""""
+    logFields shouldContain """"bigDecimal":"100.0""""
   }
 
   @Test
@@ -102,14 +102,14 @@ class LogMarkerTest {
           }
         }
 
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addMarker("key", "value", serializer = prefixSerializer)
+        addField("key", "value", serializer = prefixSerializer)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "key":"Prefix: value"
         """
@@ -122,14 +122,14 @@ class LogMarkerTest {
 
     val user = User(id = 1, name = "John Doe")
 
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addMarker("user", user)
+        addField("user", user)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "user":"User(id=1, name=John Doe)"
         """
@@ -137,17 +137,17 @@ class LogMarkerTest {
   }
 
   @Test
-  fun `duplicate markers only includes the first marker`() {
-    val markers = captureLogMarkers {
+  fun `duplicate field keys only includes the first field`() {
+    val logFields = captureLogFields {
       log.info {
-        addMarker("duplicateKey", "value1")
-        addMarker("duplicateKey", "value2")
-        addMarker("duplicateKey", "value3")
+        addField("duplicateKey", "value1")
+        addField("duplicateKey", "value2")
+        addField("duplicateKey", "value3")
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "duplicateKey":"value1"
         """
@@ -155,20 +155,20 @@ class LogMarkerTest {
   }
 
   @Test
-  fun `rawJsonMarker works for valid JSON`() {
+  fun `addRawJsonField works for valid JSON`() {
     val userJson = """{"id":1,"name":"John Doe"}"""
 
     // The above JSON should work both for validJson = true and validJson = false
     for (assumeValidJson in listOf(true, false)) {
       withClue({ "assumeValidJson = ${assumeValidJson}" }) {
-        val markers = captureLogMarkers {
+        val logFields = captureLogFields {
           log.info {
-            addRawJsonMarker("user", userJson, validJson = assumeValidJson)
+            addRawJsonField("user", userJson, validJson = assumeValidJson)
             "Test"
           }
         }
 
-        markers shouldBe
+        logFields shouldBe
             """
               "user":${userJson}
             """
@@ -178,17 +178,17 @@ class LogMarkerTest {
   }
 
   @Test
-  fun `rawJsonMarker escapes invalid JSON by default`() {
+  fun `addRawJsonField escapes invalid JSON by default`() {
     val invalidJson = """{"id":1"""
 
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addRawJsonMarker("user", invalidJson)
+        addRawJsonField("user", invalidJson)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "user":"{\"id\":1"
         """
@@ -196,23 +196,23 @@ class LogMarkerTest {
   }
 
   /**
-   * When the user sets validJson = true on rawJsonMarker, they promise that the given JSON is
+   * When the user sets validJson = true on addRawJsonField, they promise that the given JSON is
    * valid, so it should be passed on as-is. We therefore verify here that no validity checks are
-   * made on the given JSON, although the user _should_ never pass invalid JSON to rawJsonMarker
+   * made on the given JSON, although the user _should_ never pass invalid JSON to addRawJsonField
    * like this.
    */
   @Test
-  fun `rawJsonMarker does not escape invalid JSON when validJson is set to true`() {
+  fun `addRawJsonField does not escape invalid JSON when validJson is set to true`() {
     val invalidJson = """{"id":1"""
 
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addRawJsonMarker("user", invalidJson, validJson = true)
+        addRawJsonField("user", invalidJson, validJson = true)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "user":${invalidJson}
         """
@@ -220,7 +220,7 @@ class LogMarkerTest {
   }
 
   @Test
-  fun `rawJsonMarker re-encodes JSON when it contains newlines`() {
+  fun `addRawJsonField re-encodes JSON when it contains newlines`() {
     val jsonWithNewlines =
         """
           {
@@ -230,14 +230,14 @@ class LogMarkerTest {
         """
             .trimIndent()
 
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addRawJsonMarker("user", jsonWithNewlines)
+        addRawJsonField("user", jsonWithNewlines)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "user":{"id":1,"name":"John Doe"}
         """
@@ -245,17 +245,17 @@ class LogMarkerTest {
   }
 
   @Test
-  fun `addExistingMarker allows adding a previously constructed marker to the log`() {
-    val existingLogMarker = marker("key", "value")
+  fun `addPreconstructedField allows adding a previously constructed field to the log`() {
+    val existingField = field("key", "value")
 
-    val markers = captureLogMarkers {
+    val logFields = captureLogFields {
       log.info {
-        addExistingMarker(existingLogMarker)
+        addPreconstructedField(existingField)
         "Test"
       }
     }
 
-    markers shouldBe
+    logFields shouldBe
         """
           "key":"value"
         """

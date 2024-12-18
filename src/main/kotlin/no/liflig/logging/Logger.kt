@@ -35,10 +35,10 @@ internal constructor(
   constructor(function: () -> Unit) : this(name = getClassNameFromFunction(function))
 
   /**
-   * Logs the message returned by the given function at the INFO log level, if it is enabled.
+   * Logs the message returned by the given function at the INFO log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add [log markers][LogMarker] by calling [LogBuilder.addMarker].
+   * receiver, and add structured key-value data with [LogBuilder.addField].
    *
    * ### Example
    *
@@ -47,7 +47,7 @@ internal constructor(
    *
    * fun example(user: User) {
    *   log.info {
-   *     addMarker("user", user)
+   *     addField("user", user)
    *     "Registered new user"
    *   }
    * }
@@ -66,10 +66,10 @@ internal constructor(
   }
 
   /**
-   * Logs the message returned by the given function at the INFO log level, if it is enabled.
+   * Logs the message returned by the given function at the WARN log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add [log markers][LogMarker] by calling [LogBuilder.addMarker].
+   * receiver, and add structured key-value data with [LogBuilder.addField].
    *
    * ### Example
    *
@@ -82,7 +82,7 @@ internal constructor(
    *   } catch (e: Exception) {
    *     log.warn {
    *       cause = e
-   *       addMarker("user", user)
+   *       addField("user", user)
    *       "Failed to send welcome email to user"
    *     }
    *   }
@@ -102,10 +102,10 @@ internal constructor(
   }
 
   /**
-   * Logs the message returned by the given function at the INFO log level, if it is enabled.
+   * Logs the message returned by the given function at the ERROR log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add [log markers][LogMarker] by calling [LogBuilder.addMarker].
+   * receiver, and add structured key-value data with [LogBuilder.addField].
    *
    * ### Example
    *
@@ -118,7 +118,7 @@ internal constructor(
    *   } catch (e: Exception) {
    *     log.error {
    *       cause = e
-   *       addMarker("user", user)
+   *       addField("user", user)
    *       "Failed to store user in database"
    *     }
    *   }
@@ -138,10 +138,10 @@ internal constructor(
   }
 
   /**
-   * Logs the message returned by the given function at the INFO log level, if it is enabled.
+   * Logs the message returned by the given function at the DEBUG log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add [log markers][LogMarker] by calling [LogBuilder.addMarker].
+   * receiver, and add structured key-value data with [LogBuilder.addField].
    *
    * ### Example
    *
@@ -150,7 +150,7 @@ internal constructor(
    *
    * fun example(user: User) {
    *   log.debug {
-   *     addMarker("user", user)
+   *     addField("user", user)
    *     "Received new sign-up request"
    *   }
    * }
@@ -169,10 +169,10 @@ internal constructor(
   }
 
   /**
-   * Logs the message returned by the given function at the INFO log level, if it is enabled.
+   * Logs the message returned by the given function at the TRACE log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add [log markers][LogMarker] by calling [LogBuilder.addMarker].
+   * receiver, and add structured key-value data with [LogBuilder.addField].
    *
    * ### Example
    *
@@ -181,7 +181,7 @@ internal constructor(
    *
    * fun example(user: User) {
    *   log.trace {
-   *     addMarker("user", user)
+   *     addField("user", user)
    *     "Started processing user request"
    *   }
    * }
@@ -205,7 +205,7 @@ internal constructor(
    * [info]/[warn]/[error]/[debug]/[trace] conditionally.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add [log markers][LogMarker] by calling [LogBuilder.addMarker].
+   * receiver, and add structured key-value data with [LogBuilder.addField].
    *
    * ### Example
    *
@@ -219,7 +219,7 @@ internal constructor(
    *     val logLevel = if (e is IOException) LogLevel.ERROR else LogLevel.WARN
    *     log.at(logLevel) {
    *       cause = e
-   *       addMarker("user", user)
+   *       addField("user", user)
    *       "Failed to send welcome email to user"
    *     }
    *   }
@@ -274,9 +274,9 @@ internal constructor(
   /** Finalizes the log event from the given builder, and logs it. */
   @PublishedApi
   internal fun log(builder: LogBuilder) {
-    // Add markers from cause exception first, as we prioritize them over context markers
-    builder.addMarkersFromCauseException()
-    builder.addMarkersFromContext()
+    // Add fields from cause exception first, as we prioritize them over context fields
+    builder.addFieldsFromCauseException()
+    builder.addFieldsFromContext()
     logbackLogger.callAppenders(builder.logEvent)
   }
 
@@ -498,7 +498,7 @@ internal fun getClassNameFromFunction(function: () -> Unit): String {
 /**
  * @throws IllegalStateException If [LoggerFactory.getLogger] does not return a Logback logger. This
  *   library is made to work with Logback only (since we use Logback-specific features such as raw
- *   JSON markers), so we want to fail loudly if Logback is not configured.
+ *   JSON values in log fields), so we want to fail loudly if Logback is not configured.
  */
 internal fun getLogbackLogger(name: String): LogbackLogger {
   try {
