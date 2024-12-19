@@ -4,6 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
+  <parent>
+    <groupId>no.liflig</groupId>
+    <artifactId>kotlin-parent</artifactId>
+    <version>3.20241219.100850</version>
+  </parent>
+
+  <!--suppress MavenRedundantGroupId -->
   <groupId>no.liflig</groupId>
   <artifactId>liflig-logging</artifactId>
   <version>${revision}</version>
@@ -59,18 +66,6 @@
     <maven-surefire.version>3.5.2</maven-surefire.version>
     <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
   </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.jetbrains.kotlin</groupId>
-        <artifactId>kotlin-bom</artifactId>
-        <version>${kotlin.version}</version>
-        <scope>import</scope>
-        <type>pom</type>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
 
   <dependencies>
     <!-- Kotlin -->
