@@ -11,9 +11,9 @@ Logging library for Kotlin JVM, that thinly wraps SLF4J and Logback to provide a
 
 ## Usage
 
-The `Logger` class is the entry point to `liflig-logging`'s logging API. You can construct a
-`Logger` by providing an empty lambda, which automatically gives the logger the name of its
-containing class (or file, if defined at the top level).
+The `Logger` class is the entry point to `liflig-logging`'s API. You can construct a `Logger` by
+providing an empty lambda, which automatically gives the logger the name of its containing class (or
+file, if defined at the top level).
 
 ```kotlin
 // File Example.kt
