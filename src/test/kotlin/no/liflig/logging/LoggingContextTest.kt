@@ -75,6 +75,27 @@ class LoggingContextTest {
   }
 
   @Test
+  fun `nested logging contexts work`() {
+    val logFields = captureLogFields {
+      withLoggingContext(
+          field("outerContext", "value"),
+      ) {
+        withLoggingContext(
+            field("nestedContext", "value"),
+        ) {
+          log.info { "Test" }
+        }
+      }
+    }
+
+    logFields shouldBe
+        """
+          "nestedContext":"value","outerContext":"value"
+        """
+            .trimIndent()
+  }
+
+  @Test
   fun `multiple context fields combined with log event field have expected order`() {
     val logFields = captureLogFields {
       withLoggingContext(
