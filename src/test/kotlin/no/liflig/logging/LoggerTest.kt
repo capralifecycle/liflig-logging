@@ -2,6 +2,7 @@ package no.liflig.logging
 
 import ch.qos.logback.classic.Level as LogbackLevel
 import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.classic.spi.ThrowableProxy
 import ch.qos.logback.core.read.ListAppender
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -230,6 +231,34 @@ internal class LoggerTest {
     caller.fileName shouldBe "LoggerTest.kt"
     caller.className shouldBe "no.liflig.logging.LoggerTest"
     caller.methodName shouldBe "log has expected file location"
+  }
+
+  /** See comment in [LogBuilder.cause] setter. */
+  @Test
+  fun `cause exception can be set to null`() {
+    log.error {
+      cause = null
+      "Test"
+    }
+  }
+
+  /** See comment in [LogBuilder.cause] setter */
+  @Test
+  fun `setting cause multiple times only keeps the first non-null exception`() {
+    val exception1 = Exception("Exception 1")
+    val exception2 = Exception("Exception 2")
+
+    log.error {
+      cause = null
+      cause = exception1
+      cause = exception2
+      "Test"
+    }
+
+    logAppender.list shouldHaveSize 1
+    val logEvent = logAppender.list.first()
+    val cause = logEvent.throwableProxy.shouldBeInstanceOf<ThrowableProxy>().throwable
+    cause shouldBe exception1
   }
 
   private fun testLogFunction(

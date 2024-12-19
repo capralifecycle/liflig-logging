@@ -37,9 +37,27 @@ internal constructor(
   /**
    * Set this if the log was caused by an exception, to include the exception message and stack
    * trace in the log.
+   *
+   * This property can only be set once on a single log. If you set `cause` multiple times, only the
+   * first non-null exception will be kept (this is due to a limitation in Logback's LoggingEvent
+   * API).
    */
   var cause: Throwable?
-    set(value) = logEvent.setThrowableProxy(ThrowableProxy(value))
+    set(value) {
+      /**
+       * Passing null to [ThrowableProxy] will throw, so we must only call it if value is not null.
+       * We still want to keep the property nullable, to support the case where the user has a cause
+       * exception that may or not be null.
+       *
+       * Calling [LogbackEvent.setThrowableProxy] twice on the same event will also throw - and at
+       * the time of writing, there is no way to just overwrite the previous throwableProxy. We
+       * would rather ignore the second cause exception than throw an exception from our logger
+       * method, so we only set throwableProxy here if it has not already been set.
+       */
+      if (value != null && logEvent.throwableProxy == null) {
+        logEvent.setThrowableProxy(ThrowableProxy(value))
+      }
+    }
     get() = (logEvent.throwableProxy as? ThrowableProxy)?.throwable
 
   /**
