@@ -53,7 +53,7 @@
     <kotlinx-serialization.version>1.7.3</kotlinx-serialization.version>
 
     <!-- Testing -->
-    <junit.version>5.11.3</junit.version>
+    <junit.version>5.11.4</junit.version>
     <kotest.version>5.9.1</kotest.version>
 
     <!-- Maven plugins -->
