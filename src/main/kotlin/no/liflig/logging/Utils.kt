@@ -1,5 +1,6 @@
 package no.liflig.logging
 
+@PublishedApi
 internal inline fun <T> List<T>.forEachReversed(action: (T) -> Unit) {
   // downTo returns an empty range if first argument is less than the second, so we don't need to
   // check bounds here

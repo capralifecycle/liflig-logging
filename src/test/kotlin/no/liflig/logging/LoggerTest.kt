@@ -233,6 +233,29 @@ internal class LoggerTest {
     caller.methodName shouldBe "log has expected file location"
   }
 
+  @Test
+  fun `non-local return works in all Logger methods`() {
+    // This won't compile if the methods aren't inline, and we want to verify that
+    log.info {
+      return
+    }
+    log.warn {
+      return
+    }
+    log.error {
+      return
+    }
+    log.debug {
+      return
+    }
+    log.trace {
+      return
+    }
+    log.at(LogLevel.INFO) {
+      return
+    }
+  }
+
   /** See comment in [LogBuilder.cause] setter. */
   @Test
   fun `cause exception can be set to null`() {
