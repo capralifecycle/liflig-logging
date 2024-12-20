@@ -24,6 +24,9 @@ atlassian-ide-plugin.xml
 !.idea/sqldialects.xml
 !.idea/vcs.xml
 
+# Exclude example test directory, which we use to create examples for docstrings
+/src/test/kotlin/no/liflig/logging/example
+
 # Created by https://www.toptal.com/developers/gitignore/api/vim,java,linux,macos,maven,kotlin,windows
 # Edit at https://www.toptal.com/developers/gitignore?templates=vim,java,linux,macos,maven,kotlin,windows
 
