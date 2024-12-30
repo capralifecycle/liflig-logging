@@ -1,9 +1,13 @@
 /overrides.properties
-/target/
+target/
 .flattened-pom.xml
 log.jsonl
 node_modules
 venv
+
+# Exclude local Maven repository used for integration tests
+# (will be generated when running mvn verify)
+local-maven-repo/
 
 # All IntelliJ
 .idea
@@ -18,7 +22,6 @@ atlassian-ide-plugin.xml
 !.idea/codeStyles/Project.xml
 !.idea/encodings.xml
 !.idea/externalDependencies.xml
-!.idea/jarRepositories.xml
 !.idea/kotlinc.xml
 !.idea/ktfmt.xml
 !.idea/sqldialects.xml

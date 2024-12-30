@@ -28,7 +28,7 @@ package no.liflig.logging
  *   }
  * }
  *
- * private val log = Logger {}
+ * private val log = getLogger {}
  *
  * fun example(user: User) {
  *   try {
@@ -68,7 +68,7 @@ open class ExceptionWithLogFields(
 
 /** Combines the given log fields with any fields from [withLoggingContext]. */
 private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<LogField> {
-  val contextFields = getLogFieldsFromContext()
+  val contextFields = LoggingContext.getFields()
 
   // If logging context is empty, we just use the given field list, to avoid allocating an
   // additional list
@@ -82,8 +82,7 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
   val combinedFields = ArrayList<LogField>(logFields.size + contextFields.size)
   // Add exception log fields first, so they show first in the log output
   combinedFields.addAll(logFields)
-  // Add context fields in reverse, so newest field shows first
-  contextFields.forEachReversed { field -> combinedFields.add(LogField(field)) }
+  contextFields.forEach { field -> combinedFields.add(field) }
   return combinedFields
 }
 
@@ -103,9 +102,9 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  * ### Example
  *
  * ```
- * import no.liflig.logging.Logger
  * import no.liflig.logging.WithLogFields
  * import no.liflig.logging.field
+ * import no.liflig.logging.getLogger
  *
  * class InvalidUserData(user: User) : RuntimeException(), WithLogFields {
  *   override val message = "Invalid user data"
@@ -118,7 +117,7 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  *   }
  * }
  *
- * private val log = Logger {}
+ * private val log = getLogger {}
  *
  * fun example(user: User) {
  *   try {

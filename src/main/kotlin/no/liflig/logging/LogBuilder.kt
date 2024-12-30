@@ -1,9 +1,6 @@
 package no.liflig.logging
 
-import ch.qos.logback.classic.spi.LoggingEvent as LogbackEvent
-import ch.qos.logback.classic.spi.ThrowableProxy
 import kotlinx.serialization.SerializationStrategy
-import net.logstash.logback.marker.SingleFieldAppendingMarker
 
 /**
  * Class used in the logging methods on [Logger], allowing you to set a [cause] exception and
@@ -12,7 +9,7 @@ import net.logstash.logback.marker.SingleFieldAppendingMarker
  * ### Example
  *
  * ```
- * private val log = Logger {}
+ * private val log = getLogger {}
  *
  * fun example(user: User) {
  *   try {
@@ -29,36 +26,23 @@ import net.logstash.logback.marker.SingleFieldAppendingMarker
  * }
  * ```
  */
-@JvmInline // Inline value class, since we just wrap a Logback logging event
+@JvmInline // Inline value class, since we just wrap a log event
 value class LogBuilder
+@PublishedApi
 internal constructor(
-    @PublishedApi internal val logEvent: LogbackEvent,
+    @PublishedApi internal val logEvent: LogEvent,
 ) {
   /**
    * Set this if the log was caused by an exception, to include the exception message and stack
    * trace in the log.
    *
-   * This property can only be set once on a single log. If you set `cause` multiple times, only the
-   * first non-null exception will be kept (this is due to a limitation in Logback's LoggingEvent
-   * API).
+   * This property should only be set once on a single log. If you set `cause` multiple times, only
+   * the first non-null exception will be kept (this is due to a limitation in Logback's
+   * LoggingEvent API).
    */
   var cause: Throwable?
-    set(value) {
-      /**
-       * Passing null to [ThrowableProxy] will throw, so we must only call it if value is not null.
-       * We still want to keep the property nullable, to support the case where the user has a cause
-       * exception that may or not be null.
-       *
-       * Calling [LogbackEvent.setThrowableProxy] twice on the same event will also throw - and at
-       * the time of writing, there is no way to just overwrite the previous throwableProxy. We
-       * would rather ignore the second cause exception than throw an exception from our logger
-       * method, so we only set throwableProxy here if it has not already been set.
-       */
-      if (value != null && logEvent.throwableProxy == null) {
-        logEvent.setThrowableProxy(ThrowableProxy(value))
-      }
-    }
-    get() = (logEvent.throwableProxy as? ThrowableProxy)?.throwable
+    set(value) = logEvent.setThrowable(value)
+    get() = logEvent.getThrowable()
 
   /**
    * Adds a [log field][LogField] (structured key-value data) to the log.
@@ -77,10 +61,10 @@ internal constructor(
    * ### Example
    *
    * ```
-   * import no.liflig.logging.Logger
+   * import no.liflig.logging.getLogger
    * import kotlinx.serialization.Serializable
    *
-   * private val log = Logger {}
+   * private val log = getLogger {}
    *
    * fun example() {
    *   val user = User(id = 1, name = "John Doe")
@@ -112,7 +96,7 @@ internal constructor(
       serializer: SerializationStrategy<ValueT>? = null,
   ) {
     if (!keyAdded(key)) {
-      logEvent.addMarker(createLogstashField(key, value, serializer))
+      logEvent.addKeyValue(key, encodeFieldValue(value, serializer))
     }
   }
 
@@ -132,9 +116,9 @@ internal constructor(
    * ### Example
    *
    * ```
-   * import no.liflig.logging.Logger
+   * import no.liflig.logging.getLogger
    *
-   * private val log = Logger {}
+   * private val log = getLogger {}
    *
    * fun example() {
    *   val userJson = """{"id":1,"name":"John Doe"}"""
@@ -153,7 +137,7 @@ internal constructor(
    */
   fun addRawJsonField(key: String, json: String, validJson: Boolean = false) {
     if (!keyAdded(key)) {
-      logEvent.addMarker(createRawJsonLogstashField(key, json, validJson))
+      logEvent.addKeyValue(key, rawJsonFieldValue(json, validJson))
     }
   }
 
@@ -166,17 +150,25 @@ internal constructor(
    */
   fun addPreconstructedField(field: LogField) {
     if (!keyAdded(field.key)) {
-      logEvent.addMarker(field.logstashField)
+      logEvent.addKeyValue(field.key, field.value)
     }
   }
 
+  @PublishedApi
+  internal fun finalize(message: String) {
+    logEvent.setMessage(message)
+
+    // Add fields from cause exception first, as we prioritize them over context fields
+    addFieldsFromCauseException()
+    addFieldsFromContext()
+  }
+
   /** Adds log fields from [withLoggingContext]. */
-  internal fun addFieldsFromContext() {
-    // Add context fields in reverse, so newest field shows first
-    getLogFieldsFromContext().forEachReversed { logstashField ->
+  private fun addFieldsFromContext() {
+    LoggingContext.getFields().forEach { field ->
       // Don't add fields with keys that have already been added
-      if (!keyAdded(logstashField.fieldName)) {
-        logEvent.addMarker(logstashField)
+      if (!keyAdded(field.key)) {
+        logEvent.addKeyValue(field.key, field.value)
       }
     }
   }
@@ -185,10 +177,10 @@ internal constructor(
    * Checks if the log [cause] exception (or any of its own cause exceptions) implements the
    * [WithLogFields] interface, and if so, adds those fields.
    */
-  internal fun addFieldsFromCauseException() {
+  private fun addFieldsFromCauseException() {
     // The `cause` here is the log event cause exception. But this exception may itself have a
     // `cause` exception, and that may have another one, and so on. We want to go through all these
-    // exceptions to look for log field, so we re-assign this local variable as we iterate through.
+    // exceptions to look for log fields, so we re-assign this local variable as we iterate through.
     var exception = cause
     // Limit the depth of cause exceptions, so we don't expose ourselves to infinite loops.
     // This can happen if:
@@ -202,7 +194,7 @@ internal constructor(
         exception.logFields.forEach { field ->
           // Don't add fields with keys that have already been added
           if (!keyAdded(field.key)) {
-            logEvent.addMarker(field.logstashField)
+            logEvent.addKeyValue(field.key, field.value)
           }
         }
       }
@@ -214,11 +206,8 @@ internal constructor(
 
   @PublishedApi
   internal fun keyAdded(key: String): Boolean {
-    /** [LogbackEvent.markerList] can be null if no fields have been added yet. */
-    val addedFields = logEvent.markerList ?: return false
+    val addedFields = logEvent.getKeyValuePairs() ?: return false
 
-    return addedFields.any { logstashField ->
-      logstashField is SingleFieldAppendingMarker && logstashField.fieldName == key
-    }
+    return addedFields.any { field -> field.key == key }
   }
 }

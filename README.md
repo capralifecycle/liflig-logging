@@ -5,24 +5,24 @@ Logging library for Kotlin JVM, that thinly wraps SLF4J and Logback to provide a
 **Contents:**
 
 - [Usage](#usage)
-  - [Setting up with Logback](#setting-up-with-logback)
+- [Adding to your project](#adding-to-your-project)
 - [Implementation](#implementation)
 - [Credits](#credits)
 
 ## Usage
 
-The `Logger` class is the entry point to `liflig-logging`'s API. You can construct a `Logger` by
-providing an empty lambda, which automatically gives the logger the name of its containing class (or
-file, if defined at the top level).
+The `Logger` class is the entry point to `liflig-logging`'s API. You can get a `Logger` by calling
+`getLogger`, with an empty lambda to automatically give the logger the name of its containing class
+(or file, if defined at the top level).
 
 ```kotlin
 // File Example.kt
 package com.example
 
-import no.liflig.logging.Logger
+import no.liflig.logging.getLogger
 
 // Gets the name "com.example.Example"
-private val log = Logger {}
+private val log = getLogger {}
 ```
 
 `Logger` provides methods for logging at various log levels (`info`, `warn`, `error`, `debug` and
@@ -41,7 +41,8 @@ You can also add _fields_ (structured key-value data) to your logs. The `addFiel
 ```kotlin
 import kotlinx.serialization.Serializable
 
-@Serializable data class User(val id: Long, val name: String)
+@Serializable
+data class User(val id: Long, val name: String)
 
 fun example() {
   val user = User(id = 1, name = "John Doe")
@@ -53,10 +54,9 @@ fun example() {
 }
 ```
 
-When outputting logs as JSON (using [`logstash-logback-encoder`](#setting-up-with-logback)), the
-key/value given to `addField` is added to the logged JSON object (see below). This allows you to
-filter and query on the field in the log analysis tool of your choice, in a more structured manner
-than if you were to just use string concatenation.
+When outputting logs as JSON, the key/value given to `addField` is added to the logged JSON object
+(see below). This allows you to filter and query on the field in the log analysis tool of your
+choice, in a more structured manner than if you were to just use string concatenation.
 
 <!-- prettier-ignore -->
 ```jsonc
@@ -111,11 +111,39 @@ fun example() {
 }
 ```
 
-### Setting up with Logback
+## Adding to your project
 
-This library is designed to work with Logback and the
-[`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder) for JSON output.
-You can configure this logger by creating a `logback.xml` file under `src/main/resources`:
+Like SLF4J, `liflig-logging` only provides a logging _API_, and you have to add a logging
+_implementation_ to actually output logs. Any SLF4J logger implementation will work, but the
+library is specially optimized for Logback.
+
+To set up `liflig-logging` with Logback and JSON output, add the following dependencies:
+
+- **Maven:**
+  ```xml
+  <dependencies>
+    <!-- Logger API -->
+    <dependency>
+      <groupId>no.liflig</groupId>
+      <artifactId>liflig-logging</artifactId>
+      <version>${liflig-logging.version}</version>
+    </dependency>
+    <!-- Logger implementation -->
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
+    </dependency>
+    <!-- JSON encoding of logs -->
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>${logstash-logback-encoder.version}</version>
+    </dependency>
+  </dependencies>
+  ```
+
+Then, configure Logback with a `logback.xml` file under `src/main/resources`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -130,8 +158,11 @@ You can configure this logger by creating a `logback.xml` file under `src/main/r
 </configuration>
 ```
 
-See the [Usage docs](https://github.com/logfellow/logstash-logback-encoder#usage) for
-`logstash-logback-encoder` for more configuration options.
+For more configuration options, see:
+
+- [The Configuration chapter of the Logback manual](https://logback.qos.ch/manual/configuration.html)
+- [The Usage docs of `logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder#usage)
+  (the library to use for JSON encoding of logs)
 
 ## Implementation
 

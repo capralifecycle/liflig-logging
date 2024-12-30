@@ -1,26 +1,33 @@
 package no.liflig.logging
 
 import ch.qos.logback.classic.Level as LogbackLevel
+import ch.qos.logback.classic.Logger as LogbackLogger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.spi.ThrowableProxy
 import ch.qos.logback.core.read.ListAppender
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.date.shouldBeBetween
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import net.logstash.logback.marker.ObjectAppendingMarker
+import java.time.Instant
+import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
+import org.slf4j.LoggerFactory as Slf4jLoggerFactory
+import org.slf4j.event.KeyValuePair
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal class LoggerTest {
   /** We use a ListAppender from Logback here so we can inspect log events after logging. */
   private val logAppender = ListAppender<ILoggingEvent>()
   private val testLoggerName = "LoggerTest"
-  private val logbackLogger = getLogbackLogger(testLoggerName)
+  private val logbackLogger = Slf4jLoggerFactory.getLogger(testLoggerName) as LogbackLogger
   private val log = Logger(logbackLogger)
 
   @BeforeAll
@@ -35,112 +42,132 @@ internal class LoggerTest {
     logAppender.list.clear()
   }
 
-  @Test
-  fun `info log`() {
-    testLogFunction(LogLevel.INFO) { message, exception, key, value ->
-      log.info {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `info log`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.INFO) {
+      test.logger.info {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `warn log`() {
-    testLogFunction(LogLevel.WARN) { message, exception, key, value ->
-      log.warn {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `warn log`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.WARN) {
+      test.logger.warn {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `error log`() {
-    testLogFunction(LogLevel.ERROR) { message, exception, key, value ->
-      log.error {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `error log`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.ERROR) {
+      test.logger.error {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `debug log`() {
-    testLogFunction(LogLevel.DEBUG) { message, exception, key, value ->
-      log.debug {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `debug log`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.DEBUG) {
+      test.logger.debug {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `trace log`() {
-    testLogFunction(LogLevel.TRACE) { message, exception, key, value ->
-      log.trace {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `trace log`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.TRACE) {
+      test.logger.trace {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `info log using 'at' method`() {
-    testLogFunction(LogLevel.INFO) { message, exception, key, value ->
-      log.at(LogLevel.INFO) {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `info log using 'at' method`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.INFO) {
+      test.logger.at(LogLevel.INFO) {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `warn log using 'at' method`() {
-    testLogFunction(LogLevel.WARN) { message, exception, key, value ->
-      log.at(LogLevel.WARN) {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `warn log using 'at' method`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.WARN) {
+      test.logger.at(LogLevel.WARN) {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `error log using 'at' method`() {
-    testLogFunction(LogLevel.ERROR) { message, exception, key, value ->
-      log.at(LogLevel.ERROR) {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `error log using 'at' method`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.ERROR) {
+      test.logger.at(LogLevel.ERROR) {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `debug log using 'at' method`() {
-    testLogFunction(LogLevel.DEBUG) { message, exception, key, value ->
-      log.at(LogLevel.DEBUG) {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `debug log using 'at' method`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.DEBUG) {
+      test.logger.at(LogLevel.DEBUG) {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
 
-  @Test
-  fun `trace log using 'at' method`() {
-    testLogFunction(LogLevel.TRACE) { message, exception, key, value ->
-      log.at(LogLevel.TRACE) {
-        cause = exception
-        addField(key, value)
-        message
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `trace log using 'at' method`(test: LoggerTestCase) {
+    test.verifyLogOutput(LogLevel.TRACE) {
+      test.logger.at(LogLevel.TRACE) {
+        cause = test.cause
+        addField(test.fieldKey1, test.fieldValue1)
+        addField(test.fieldKey2, test.fieldValue2)
+        test.message
       }
     }
   }
@@ -149,14 +176,15 @@ internal class LoggerTest {
    * We test logs with field + cause exception above, but we also want to make sure that just
    * logging a message by itself works.
    */
-  @Test
-  fun `log with no fields or exceptions`() {
-    log.info { "Test" }
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `log with no fields or exceptions`(test: LoggerTestCase) {
+    test.logger.info { "Test" }
 
     logAppender.list shouldHaveSize 1
     val logEvent = logAppender.list.first()
     logEvent.message shouldBe "Test"
-    logEvent.markerList.shouldBeNull()
+    logEvent.keyValuePairs.shouldBeNull()
     logEvent.throwableProxy.shouldBeNull()
   }
 
@@ -192,8 +220,8 @@ internal class LoggerTest {
   @Test
   fun `Logger constructor with name parameter`() {
     val testName = "LoggerWithCustomName"
-    val logger = Logger(name = testName)
-    logger.logbackLogger.name shouldBe testName
+    val logger = getLogger(name = testName)
+    logger.underlyingLogger.name shouldBe testName
   }
 
   @Test
@@ -201,36 +229,44 @@ internal class LoggerTest {
     // All loggers in this file should have this name (since file name and class name here are the
     // same), whether it's constructed inside the class, outside, or on a companion object.
     val expectedName = "no.liflig.logging.LoggerTest"
-    loggerConstructedInsideClass.logbackLogger.name shouldBe expectedName
-    loggerConstructedOutsideClass.logbackLogger.name shouldBe expectedName
-    loggerConstructedOnCompanionObject.logbackLogger.name shouldBe expectedName
+    loggerInsideClass.underlyingLogger.name shouldBe expectedName
+    loggerOutsideClass.underlyingLogger.name shouldBe expectedName
+    loggerOnCompanionObject.underlyingLogger.name shouldBe expectedName
 
     // Logger constructed in separate file should be named after that file.
-    loggerConstructedInOtherFile.logbackLogger.name shouldBe "no.liflig.logging.TestUtils"
+    loggerInOtherFile.underlyingLogger.name shouldBe "no.liflig.logging.TestUtils"
   }
 
-  @Test
-  fun `Logger fully qualified class name has expected value`() {
-    Logger.FULLY_QUALIFIED_CLASS_NAME shouldBe "no.liflig.logging.Logger"
-  }
-
-  @Test
-  fun `log has expected file location`() {
-    log.info { "Test" }
+  @ParameterizedTest
+  @MethodSource("getLoggerTestCases")
+  fun `log has expected file location`(test: LoggerTestCase) {
+    test.logger.info { "Test" }
 
     logAppender.list shouldHaveSize 1
     val logEvent = logAppender.list.first()
-    val callerData = logEvent.callerData
-    callerData.shouldNotBeEmpty()
-    val caller = callerData.first()
+    logEvent.callerData.shouldNotBeEmpty()
+    val caller = logEvent.callerData.first()
 
-    /**
-     * We don't test line number here, as the logger methods will have wrong line numbers due to
-     * being inline functions (see [Logger.info]).
-     */
-    caller.fileName shouldBe "LoggerTest.kt"
-    caller.className shouldBe "no.liflig.logging.LoggerTest"
-    caller.methodName shouldBe "log has expected file location"
+    if (test.shouldHaveCorrectFileLocation) {
+      /**
+       * We don't test line number here, as the logger methods will have wrong line numbers due to
+       * being inline functions (see [Logger.info]).
+       */
+      caller.fileName shouldBe "LoggerTest.kt"
+      caller.className shouldBe "no.liflig.logging.LoggerTest"
+      caller.methodName shouldBe "log has expected file location"
+    }
+  }
+
+  @Test
+  fun `log event caller boundaries have expected values`() {
+    LogbackLogEvent.FULLY_QUALIFIED_CLASS_NAME shouldBe "no.liflig.logging.LogbackLogEvent"
+    Slf4jLogEvent.FULLY_QUALIFIED_CLASS_NAME shouldBe "no.liflig.logging.Slf4jLogEvent"
+  }
+
+  @Test
+  fun `Logback is loaded in tests`() {
+    LogEvent.LOGBACK_IS_ON_CLASSPATH shouldBe true
   }
 
   @Test
@@ -256,7 +292,7 @@ internal class LoggerTest {
     }
   }
 
-  /** See comment in [LogBuilder.cause] setter. */
+  /** See comment in [LogbackLogEvent.setThrowable]. */
   @Test
   fun `cause exception can be set to null`() {
     log.error {
@@ -265,7 +301,7 @@ internal class LoggerTest {
     }
   }
 
-  /** See comment in [LogBuilder.cause] setter */
+  /** See comment in [LogBuilder.cause] setter and [LogbackLogEvent.setThrowable]. */
   @Test
   fun `setting cause multiple times only keeps the first non-null exception`() {
     val exception1 = Exception("Exception 1")
@@ -284,35 +320,78 @@ internal class LoggerTest {
     cause shouldBe exception1
   }
 
-  private fun testLogFunction(
-      logLevel: LogLevel,
-      // (message, cause exception, field key, field value)
-      logFunction: (String, Exception, String, String) -> Unit
+  data class LoggerTestCase(
+      val name: String,
+      val logger: Logger,
+      val loggerName: String = logger.underlyingLogger.name,
+      val message: String = "Test message",
+      val fieldKey1: String = "key1",
+      val fieldValue1: String = "value1",
+      val fieldKey2: String = "key2",
+      val fieldValue2: User = User(id = 1, name = "John Doe"),
+      val cause: Exception = Exception("Something went wrong"),
+      val expectedMessage: String = message,
+      val expectedFields: List<KeyValuePair>? =
+          listOf(
+              KeyValuePair(fieldKey1, fieldValue1),
+              KeyValuePair(fieldKey2, RawJson("""{"id":1,"name":"John Doe"}""")),
+          ),
+      val shouldHaveCorrectFileLocation: Boolean = true,
   ) {
-    val message = "Test message"
-    val fieldKey = "key"
-    val fieldValue = "value"
-    val exception = Exception("Something went wrong")
-    logFunction(message, exception, fieldKey, fieldValue)
+    override fun toString() = name
+
+    /** To test log fields with object values. */
+    @Serializable data class User(val id: Int, val name: String)
+  }
+
+  val loggerTestCases =
+      listOf(
+          LoggerTestCase("Logback logger", log),
+          LoggerTestCase(
+              "Event-aware SLF4J logger",
+              logger = Logger(EventAwareSlf4jLogger(logbackLogger)),
+          ),
+          LoggerTestCase(
+              "Location-aware SLF4J logger",
+              logger = Logger(LocationAwareSlf4jLogger(logbackLogger)),
+              expectedMessage = """Test message [key1=value1, key2={"id":1,"name":"John Doe"}]""",
+              expectedFields = null,
+          ),
+          LoggerTestCase(
+              "Plain SLF4J logger",
+              logger = Logger(PlainSlf4jLogger(logbackLogger)),
+              expectedMessage = """Test message [key1=value1, key2={"id":1,"name":"John Doe"}]""",
+              expectedFields = null,
+              // The plain SLF4J logger does not implement location-aware logging, so we don't
+              // expect it to have correct file location
+              shouldHaveCorrectFileLocation = false,
+          ),
+      )
+
+  private fun LoggerTestCase.verifyLogOutput(expectedLogLevel: LogLevel, block: () -> Unit) {
+    val timeBefore = Instant.now()
+    block()
+    val timeAfter = Instant.now()
 
     logAppender.list shouldHaveSize 1
     val logEvent = logAppender.list.first()
-    logEvent.level.toString() shouldBe logLevel.toString()
-    logEvent.message shouldBe message
-    logEvent.throwableProxy.message shouldBe exception.message
-    logEvent.loggerName shouldBe testLoggerName
 
-    logEvent.markerList shouldHaveSize 1
-    val logstashField = logEvent.markerList.first().shouldBeInstanceOf<ObjectAppendingMarker>()
-    logstashField.fieldName shouldBe fieldKey
-    logstashField shouldBe ObjectAppendingMarker(fieldKey, fieldValue)
+    logEvent.loggerName shouldBe this.loggerName
+    logEvent.message shouldBe this.expectedMessage
+    logEvent.level.toString() shouldBe expectedLogLevel.toString()
+    logEvent.instant.shouldBeBetween(timeBefore, timeAfter)
+
+    val throwableProxy = logEvent.throwableProxy.shouldBeInstanceOf<ThrowableProxy>()
+    throwableProxy.throwable shouldBe this.cause
+
+    logEvent.keyValuePairs shouldBe this.expectedFields
   }
 
-  private val loggerConstructedInsideClass = Logger {}
+  private val loggerInsideClass = getLogger {}
 
   companion object {
-    private val loggerConstructedOnCompanionObject = Logger {}
+    private val loggerOnCompanionObject = getLogger {}
   }
 }
 
-private val loggerConstructedOutsideClass = Logger {}
+private val loggerOutsideClass = getLogger {}

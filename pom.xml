@@ -44,23 +44,26 @@
     <kotlin.version>2.0.21</kotlin.version>
 
     <!-- Logging -->
+    <slf4j.version>2.0.16</slf4j.version>
     <logback.version>1.5.15</logback.version>
-    <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
-    <!-- Use same SLF4J version as Logback (Logback is the more important dependency here, so we want to match it) -->
-    <slf4j.version>2.0.15</slf4j.version>
 
     <!-- Serialization -->
     <kotlinx-serialization.version>1.7.3</kotlinx-serialization.version>
+    <jackson.version>2.18.2</jackson.version>
 
     <!-- Testing -->
     <junit.version>5.11.4</junit.version>
     <kotest.version>5.9.1</kotest.version>
+    <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
 
     <!-- Maven plugins -->
     <spotless-maven-plugin.version>2.43.0</spotless-maven-plugin.version>
     <ktfmt.version>0.43</ktfmt.version>
-    <maven-enforcer.version>3.5.0</maven-enforcer.version>
     <maven-surefire.version>3.5.2</maven-surefire.version>
+    <maven-install-plugin.version>3.1.3</maven-install-plugin.version>
+    <maven-dependency-plugin.version>3.8.1</maven-dependency-plugin.version>
+    <exec-maven-plugin.version>3.5.0</exec-maven-plugin.version>
+    <maven-enforcer.version>3.5.0</maven-enforcer.version>
     <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
   </properties>
 
@@ -74,19 +77,20 @@
 
     <!-- Logging -->
     <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>${logback.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>net.logstash.logback</groupId>
-      <artifactId>logstash-logback-encoder</artifactId>
-      <version>${logstash-logback-encoder.version}</version>
-    </dependency>
-    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
       <version>${slf4j.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
+      <!--
+        This library works for any SLF4J logger implementation, but makes some optimizations for Logback. If the user
+        chooses Logback as their logger implementation, we can apply these optimizations, but if they don't, then we
+        don't want to load Logback, as that can interfere with other SLF4J logger implementations on the classpath.
+      -->
+      <optional>true</optional>
     </dependency>
 
     <!-- Serialization -->
@@ -94,6 +98,11 @@
       <groupId>org.jetbrains.kotlinx</groupId>
       <artifactId>kotlinx-serialization-json</artifactId>
       <version>${kotlinx-serialization.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
     </dependency>
 
     <!-- Testing -->
@@ -104,9 +113,21 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>io.kotest</groupId>
       <artifactId>kotest-assertions-core-jvm</artifactId>
       <version>${kotest.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>${logstash-logback-encoder.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -171,12 +192,6 @@
         </executions>
       </plugin>
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>${maven-surefire.version}</version>
-      </plugin>
-
       <!-- Formatting with ktfmt -->
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
@@ -197,6 +212,90 @@
               <goal>check</goal>
             </goals>
             <phase>validate</phase>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Testing -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven-surefire.version}</version>
+      </plugin>
+
+      <!--
+        Install JAR in integration-tests/local-maven-repo, so integration tests can use it.
+        See integration-tests/README.md for more on how integration tests are set up here.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+        <version>${maven-install-plugin.version}</version>
+        <executions>
+          <execution>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>install-file</goal>
+            </goals>
+            <configuration>
+              <file>./target/liflig-logging-${project.version}.jar</file>
+              <groupId>${project.groupId}</groupId>
+              <artifactId>${project.artifactId}</artifactId>
+              <version>${project.version}</version>
+              <packaging>${project.packaging}</packaging>
+              <localRepositoryPath>./integration-tests/local-maven-repo</localRepositoryPath>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Purge liflig-logging from cache, to make sure we use newest snapshot in integration tests -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>${maven-dependency-plugin.version}</version>
+        <executions>
+          <execution>
+            <phase>clean</phase>
+            <goals>
+              <goal>purge-local-repository</goal>
+            </goals>
+            <configuration>
+              <manualIncludes>
+                <include>no.liflig:liflig-logging</include>
+              </manualIncludes>
+              <snapshotsOnly>true</snapshotsOnly>
+              <reResolve>false</reResolve>
+              <actTransitively>false</actTransitively>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        Run integration tests from integration-tests subdirectory.
+        See integration-tests/README.md for more on how integration tests are set up here.
+      -->
+      <plugin>
+        <artifactId>exec-maven-plugin</artifactId>
+        <groupId>org.codehaus.mojo</groupId>
+        <version>${exec-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>integration-tests</id>
+            <phase>integration-test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>mvn</executable>
+              <arguments>
+                <argument>clean</argument>
+                <argument>test</argument>
+                <argument>-f=./integration-tests</argument>
+                <argument>-Dstyle.color=always</argument>
+              </arguments>
+            </configuration>
           </execution>
         </executions>
       </plugin>

@@ -1,12 +1,15 @@
 package no.liflig.logging
 
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import java.util.concurrent.Executors
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import org.junit.jupiter.api.Test
 
-private val log = Logger {}
+private val log = getLogger {}
 
 class LoggingContextTest {
   @Test
@@ -252,5 +255,106 @@ class LoggingContextTest {
           "fieldFromParentThread":"value"
         """
             .trimIndent()
+  }
+
+  /**
+   * Verifies that the logic explained in the docstrings on [LoggingContext],
+   * [LoggingContext.addFields] and [LoggingContext.popFields] works as expected.
+   */
+  @Test
+  fun `logging context field array has expected state in various edge-cases`() {
+    // Before calling withLoggingContext: array should be null
+    LoggingContext.getFieldArray().shouldBeNull()
+
+    // Outer context
+    withLoggingContext(field("key1", "value")) {
+      LoggingContext.getFieldArray() shouldBe arrayOf(field("key1", "value"))
+
+      // First nested context: should add fields to beginning of array
+      withLoggingContext(
+          field("key2", "value"),
+          field("key3", "value"),
+      ) {
+        LoggingContext.getFieldArray() shouldBe
+            arrayOf(
+                field("key2", "value"),
+                field("key3", "value"),
+                field("key1", "value"),
+            )
+      }
+
+      val arrayAfterFirstNestedContext = LoggingContext.getFieldArray()
+      // Key 2 and 3 should be set to null, since we exited their context. But array should not have
+      // been shrunk (which would require a re-allocation) or freed, since we haven't exited the
+      // outer context yet.
+      arrayAfterFirstNestedContext shouldBe arrayOf(null, null, field("key1", "value"))
+
+      // Second nested context: Should use available space in existing array
+      withLoggingContext(field("key4", "value")) {
+        val arrayInsideSecondNestedContext = LoggingContext.getFieldArray()
+        arrayInsideSecondNestedContext shouldBe
+            arrayOf(
+                // New field should be placed right in front of existing fields, and leave empty
+                // space at the front
+                null,
+                field("key4", "value"),
+                field("key1", "value"),
+            )
+        // The same array instance should be re-used when there is available space
+        arrayInsideSecondNestedContext shouldBeSameInstanceAs arrayAfterFirstNestedContext
+
+        // Third nested context: This adds 2 extra fields to the context, exceeding the current
+        // capacity. This should give us a new array with the new fields + existing fields, and
+        // importantly _without_ the null element that the context had in its empty space.
+        withLoggingContext(
+            field("key5", "value"),
+            field("key6", "value"),
+        ) {
+          LoggingContext.getFieldArray() shouldBe
+              arrayOf(
+                  field("key5", "value"),
+                  field("key6", "value"),
+                  field("key4", "value"),
+                  field("key1", "value"),
+              )
+        }
+      }
+
+      // We still haven't exited the outer context, and since our last context had 4 total fields,
+      // there should now be 3 empty spaces + the field from the outer context
+      LoggingContext.getFieldArray() shouldBe arrayOf(null, null, null, field("key1", "value"))
+    }
+
+    // Outer context has now exited, so field array should be set to null to free the allocation
+    LoggingContext.getFieldArray().shouldBeNull()
+  }
+
+  /**
+   * Verify that logging context does not redundantly copy input array, to optimize performance
+   * (explained in the second point on the docstring of [LoggingContext]).
+   */
+  @Test
+  fun `logging context field array should not copy array from withLoggingContext`() {
+    val fields = arrayOf(field("key", "value"))
+
+    withLoggingContextInternal(fields) {
+      LoggingContext.getFieldArray() shouldBeSameInstanceAs fields
+    }
+  }
+
+  /**
+   * Sanity check that varargs make a copy of a given array (an important assumption for us, as
+   * explained on [withLoggingContextInternal]).
+   */
+  @Test
+  fun `existing array is copied when passed as vararg`() {
+    val fields = arrayOf(field("key", "value"))
+
+    // Test both named param and spread operator (*) syntax, for good measure
+    withLoggingContext(logFields = fields) {
+      LoggingContext.getFieldArray() shouldNotBeSameInstanceAs fields
+    }
+
+    withLoggingContext(*fields) { LoggingContext.getFieldArray() shouldNotBeSameInstanceAs fields }
   }
 }

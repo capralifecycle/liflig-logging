@@ -14,7 +14,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encoding.Encoder
 import org.junit.jupiter.api.Test
 
-private val log = Logger {}
+private val log = getLogger {}
 
 class LogFieldTest {
   @Test
@@ -150,6 +150,24 @@ class LogFieldTest {
     logFields shouldBe
         """
           "duplicateKey":"value1"
+        """
+            .trimIndent()
+  }
+
+  @Test
+  fun `null field value is allowed`() {
+    val nullValue: String? = null
+
+    val logFields = captureLogFields {
+      log.info {
+        addField("key", nullValue)
+        "Test"
+      }
+    }
+
+    logFields shouldBe
+        """
+          "key":null
         """
             .trimIndent()
   }
