@@ -1,11 +1,17 @@
 package no.liflig.logging
 
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.matchers.types.shouldNotBeSameInstanceAs
+import java.util.concurrent.Callable
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
 import org.junit.jupiter.api.Test
 
@@ -223,7 +229,43 @@ class LoggingContextTest {
 
   @Test
   fun `getLoggingContext allows passing logging context between threads`() {
-    val executor = Executors.newSingleThreadExecutor()
+    val lock = ReentrantLock()
+    // Used to wait for the child thread to complete its log
+    val conditionLatch = CountDownLatch(1)
+
+    val logFields = captureLogFields {
+      // Aquire a lock around the outer withLoggingContext in the parent thread, to test that
+      // the logging context works in the child thread even when the outer context has exited
+      lock.withLock {
+        withLoggingContext(field("fieldFromParentThread", "value")) {
+          // Get the parent logging context (the one we just entered)
+          val loggingContext = getLoggingContext()
+
+          thread {
+            // Acquire the lock here in the child thread - this will block until the outer
+            // logging context has exited
+            lock.withLock {
+              // Use the parent logging context here in the child thread
+              withLoggingContext(loggingContext) { log.error { "Test" } }
+              conditionLatch.countDown()
+            }
+          }
+        }
+      }
+
+      conditionLatch.await() // Waits until completed
+    }
+
+    logFields shouldBe
+        """
+          "fieldFromParentThread":"value"
+        """
+            .trimIndent()
+  }
+
+  @Test
+  fun `ExecutorService with inheritLoggingContext allows passing logging context between threads`() {
+    val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
     val lock = ReentrantLock()
 
     val logFields = captureLogFields {
@@ -233,16 +275,10 @@ class LoggingContextTest {
           // the logging context works in the child thread even when the outer context has exited
           lock.withLock {
             withLoggingContext(field("fieldFromParentThread", "value")) {
-              // Get the parent logging context (the one we just entered)
-              val loggingContext = getLoggingContext()
-
               executor.submit {
                 // Acquire the lock here in the child thread - this will block until the outer
                 // logging context has exited
-                lock.withLock {
-                  // Use the parent logging context here in the child thread
-                  withLoggingContext(loggingContext) { log.error { "Test" } }
-                }
+                lock.withLock { log.error { "Test" } }
               }
             }
           }
@@ -255,6 +291,76 @@ class LoggingContextTest {
           "fieldFromParentThread":"value"
         """
             .trimIndent()
+  }
+
+  @Test
+  fun `ExecutorService with inheritLoggingContext does not affect parent thread context`() {
+    val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
+
+    /**
+     * Use a [CyclicBarrier] here for synchronization points between the two threads in our test.
+     */
+    val barrier = CyclicBarrier(2)
+
+    val parentField = field("parent", true)
+    val childField = field("child", true)
+
+    withLoggingContext(parentField) {
+      LoggingContext.getFieldArray() shouldBe arrayOf(parentField)
+
+      executor.execute {
+        // Mutate the logging context fields here in the child thread
+        LoggingContext.getFieldArray() shouldBe arrayOf(parentField)
+        LoggingContext.getFieldArray()!![0] = childField
+        LoggingContext.getFieldArray() shouldBe arrayOf(childField)
+
+        // 1st synchronization point: The parent thread will reach this after we've mutated the
+        // logging context here in the child thread, so we can verify that the parent's context is
+        // unchanged
+        barrier.await()
+        // 2nd synchronization point: We want to keep this thread running while the parent thread
+        // tests its logging context fields, to keep the child thread context alive
+        barrier.await()
+      }
+
+      barrier.await() // 1st synchronization point
+      LoggingContext.getFieldArray() shouldBe arrayOf(parentField)
+      barrier.await() // 2nd synchronization point
+    }
+  }
+
+  /**
+   * In [ExecutorServiceWithInheritedLoggingContext], we only call [withLoggingContextInternal] if
+   * there are fields in the logging context. Otherwise, we just invoke the Runnable/Callable
+   * directly - we want to test that that works.
+   */
+  @Test
+  fun `ExecutorService with inheritLoggingContext works when there are no fields in the context`() {
+    val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
+
+    // Verify that there are no fields in parent thread context
+    LoggingContext.getFieldArray().shouldBeNull()
+
+    val callableFuture =
+        executor.submit(
+            Callable {
+              // Verify that there are no fields in child thread context
+              LoggingContext.getFieldArray().shouldBeNull()
+              "Test"
+            },
+        )
+    val result = callableFuture.get() // Waits until completed
+    result shouldBe "Test"
+
+    // We want to test this with Runnable as well, since ExecutorService takes both.
+    // Since Runnable does not return a result, we use an AtomicBoolean to pass a result.
+    val executed = AtomicBoolean(false)
+
+    @Suppress("RedundantSamConstructor") // We want to explicilty mark the lambda as a Runnable
+    val runnableFuture = executor.submit(Runnable { executed.set(true) })
+    runnableFuture.get()
+
+    executed.get().shouldBeTrue()
   }
 
   /**

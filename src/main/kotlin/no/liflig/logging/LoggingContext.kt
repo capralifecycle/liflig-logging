@@ -1,5 +1,10 @@
 package no.liflig.logging
 
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+
 /**
  * Adds the given [log fields][LogField] to every log made by a [Logger] in the context of the given
  * [block].
@@ -126,6 +131,9 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  * [withLoggingContext]). This can be used to pass logging context between threads (see example
  * below).
  *
+ * If you spawn threads using an [ExecutorService], you may instead use [inheritLoggingContext],
+ * which does the logging context copying from parent to child for you.
+ *
  * ### Example
  *
  * ```
@@ -133,14 +141,13 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  * import no.liflig.logging.getLogger
  * import no.liflig.logging.getLoggingContext
  * import no.liflig.logging.withLoggingContext
- * import java.util.concurrent.ExecutorService
+ * import kotlin.concurrent.thread
  *
  * private val log = getLogger {}
  *
  * class UserService(
  *     private val userRepository: UserRepository,
  *     private val emailService: EmailService,
- *     private val executor: ExecutorService,
  * ) {
  *   fun registerUser(user: User) {
  *     withLoggingContext(field("user", user)) {
@@ -149,16 +156,16 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  *     }
  *   }
  *
- *   // In this hypothetical, we don't want sendWelcomeEmail to block registerUser, so we use an
- *   // ExecutorService to spawn a thread.
+ *   // In this hypothetical, we don't want sendWelcomeEmail to block registerUser, so we spawn a
+ *   // thread.
  *   //
  *   // But we want to log if it fails, and include the logging context from the parent thread.
  *   // This is where getLoggingContext comes in.
  *   private fun sendWelcomeEmail(user: User) {
- *     // We call getLoggingContext here, so that we get the context fields from the parent thread
+ *     // We call getLoggingContext here, to copy the context fields from the parent thread
  *     val loggingContext = getLoggingContext()
  *
- *     executor.execute {
+ *     thread {
  *       // We then pass the parent context to withLoggingContext here in the child thread
  *       withLoggingContext(loggingContext) {
  *         try {
@@ -189,6 +196,62 @@ fun getLoggingContext(): List<LogField> {
   val fieldsCopy = ArrayList<LogField>(contextFields.size)
   contextFields.forEach { fieldsCopy.add(it) }
   return fieldsCopy
+}
+
+/**
+ * Wraps an [ExecutorService] in a new implementation that copies logging context fields (from
+ * [withLoggingContext]) from the parent thread to child threads when spawning new tasks. This is
+ * useful when you use an `ExecutorService` in the scope of a logging context, and you want the
+ * fields from the logging context to also be included on the logs in the child tasks.
+ *
+ * ### Example
+ *
+ * ```
+ * import no.liflig.logging.field
+ * import no.liflig.logging.getLogger
+ * import no.liflig.logging.inheritLoggingContext
+ * import no.liflig.logging.withLoggingContext
+ * import java.util.concurrent.Executors
+ *
+ * private val log = getLogger {}
+ *
+ * class UserService(
+ *     private val userRepository: UserRepository,
+ *     private val emailService: EmailService,
+ * ) {
+ *   // Call inheritLoggingContext on the executor
+ *   private val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
+ *
+ *   fun registerUser(user: User) {
+ *     withLoggingContext(field("user", user)) {
+ *       userRepository.create(user)
+ *       sendWelcomeEmail(user)
+ *     }
+ *   }
+ *
+ *   // In this hypothetical, we don't want sendWelcomeEmail to block registerUser, so we use an
+ *   // ExecutorService to spawn a thread.
+ *   //
+ *   // But we want to log if it fails, and include the logging context from the parent thread.
+ *   // This is where inheritLoggingContext comes in.
+ *   private fun sendWelcomeEmail(user: User) {
+ *     executor.execute {
+ *       try {
+ *         emailService.sendEmail(to = user.email, content = makeWelcomeEmailContent(user))
+ *       } catch (e: Exception) {
+ *         // This log will get the "user" field from the parent logging context
+ *         log.error {
+ *           cause = e
+ *           "Failed to send welcome email to user"
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ * ```
+ */
+fun ExecutorService.inheritLoggingContext(): ExecutorService {
+  return ExecutorServiceWithInheritedLoggingContext(this)
 }
 
 /**
@@ -348,6 +411,30 @@ internal object LoggingContext {
     }
   }
 
+  /** Returns null if the logging context fields have not been initialized yet in this thread. */
+  internal fun copyFieldArray(): Array<LogField>? {
+    val fields = getFieldArray() ?: return null
+
+    val fieldsCopy =
+        fields.copyOfRange(
+            fromIndex = fields.startIndexOfNonNullFields(),
+            toIndex = fields.size,
+        )
+
+    /**
+     * This cast is safe, because:
+     * - As explained in the docstring for [popFields], only the first elements in the field array
+     *   will be null. So after we find our first non-null field, all subsequent fields will be
+     *   non-null.
+     * - Since we use `fromIndex = fields.startIndexOfNonNullFields()` above, we know that
+     *   `fieldsCopy` has only non-null fields.
+     * - There can never be _only_ null fields in the array, since we reset the array itself to null
+     *   when removing the last field in [popFields]. So if the array is not null (which we check
+     *   above), there will be at least 1 non-null field.
+     */
+    @Suppress("UNCHECKED_CAST") return fieldsCopy as Array<LogField>
+  }
+
   private fun Array<LogField?>.startIndexOfNonNullFields(): Int {
     var startIndex = 0
     for (field in this) {
@@ -358,5 +445,87 @@ internal object LoggingContext {
       }
     }
     return startIndex
+  }
+}
+
+/**
+ * Implementation for [inheritLoggingContext]. Wraps the methods on the given [ExecutorService] that
+ * take a [Callable]/[Runnable] with [wrapCallable]/[wrapRunnable], which copy the logging context
+ * fields from the spawning thread to the spawned tasks.
+ *
+ * In the implementations of [wrapCallable]/[wrapRunnable], we use [LoggingContext.copyFieldArray]
+ * and pass the array directly to [withLoggingContextInternal], instead of using
+ * [getLoggingContext]. This is because `getLoggingContext` requires 2 array copies: one for the
+ * list returned by that function, and a second defensive copy done by `withLoggingContext`. So we
+ * can save an allocation by just making a single array copy.
+ */
+@JvmInline // Inline value class, since we just wrap another ExecutorService
+internal value class ExecutorServiceWithInheritedLoggingContext(
+    private val wrappedExecutor: ExecutorService,
+) :
+    // Use interface delegation here, so we only override the methods we're interested in.
+    ExecutorService by wrappedExecutor {
+  override fun execute(command: Runnable) {
+    wrappedExecutor.execute(wrapRunnable(command))
+  }
+
+  override fun <T : Any?> submit(task: Callable<T>): Future<T> {
+    return wrappedExecutor.submit(wrapCallable(task))
+  }
+
+  override fun submit(task: Runnable): Future<*> {
+    return wrappedExecutor.submit(wrapRunnable(task))
+  }
+
+  override fun <T : Any?> submit(task: Runnable, result: T): Future<T> {
+    return wrappedExecutor.submit(wrapRunnable(task), result)
+  }
+
+  override fun <T : Any?> invokeAll(
+      tasks: MutableCollection<out Callable<T>>
+  ): MutableList<Future<T>> {
+    return wrappedExecutor.invokeAll(tasks.map { wrapCallable(it) })
+  }
+
+  override fun <T : Any?> invokeAll(
+      tasks: MutableCollection<out Callable<T>>,
+      timeout: Long,
+      unit: TimeUnit
+  ): MutableList<Future<T>> {
+    return wrappedExecutor.invokeAll(tasks.map { wrapCallable(it) }, timeout, unit)
+  }
+
+  override fun <T : Any> invokeAny(tasks: MutableCollection<out Callable<T>>): T {
+    return wrappedExecutor.invokeAny(tasks.map { wrapCallable(it) })
+  }
+
+  override fun <T : Any?> invokeAny(
+      tasks: MutableCollection<out Callable<T>>,
+      timeout: Long,
+      unit: TimeUnit
+  ): T {
+    return wrappedExecutor.invokeAny(tasks.map { wrapCallable(it) }, timeout, unit)
+  }
+
+  private fun <T> wrapCallable(callable: Callable<T>): Callable<T> {
+    // Copy context fields here, to get the logging context of the parent thread.
+    // We then pass this to withLoggingContext in the returned Callable below, which will be invoked
+    // in the child thread, thus inheriting the parent's context fields.
+    return when (val contextFields = LoggingContext.copyFieldArray()) {
+      // If there are no context fields, we can return the Callable as-is
+      null -> callable
+      else -> Callable { withLoggingContextInternal(contextFields) { callable.call() } }
+    }
+  }
+
+  private fun wrapRunnable(runnable: Runnable): Runnable {
+    // Copy context fields here, to get the logging context of the parent thread.
+    // We then pass this to withLoggingContext in the returned Runnable below, which will be invoked
+    // in the child thread, thus inheriting the parent's context fields.
+    return when (val contextFields = LoggingContext.copyFieldArray()) {
+      // If there are no context fields, we can return the Runnable as-is
+      null -> runnable
+      else -> Runnable { withLoggingContextInternal(contextFields) { runnable.run() } }
+    }
   }
 }
