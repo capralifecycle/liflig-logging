@@ -465,6 +465,29 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
 ) :
     // Use interface delegation here, so we only override the methods we're interested in.
     ExecutorService by wrappedExecutor {
+
+  private fun <T> wrapCallable(callable: Callable<T>): Callable<T> {
+    // Copy context fields here, to get the logging context of the parent thread.
+    // We then pass this to withLoggingContext in the returned Callable below, which will be invoked
+    // in the child thread, thus inheriting the parent's context fields.
+    return when (val contextFields = LoggingContext.copyFieldArray()) {
+      // If there are no context fields, we can return the Callable as-is
+      null -> callable
+      else -> Callable { withLoggingContextInternal(contextFields) { callable.call() } }
+    }
+  }
+
+  private fun wrapRunnable(runnable: Runnable): Runnable {
+    // Copy context fields here, to get the logging context of the parent thread.
+    // We then pass this to withLoggingContext in the returned Runnable below, which will be invoked
+    // in the child thread, thus inheriting the parent's context fields.
+    return when (val contextFields = LoggingContext.copyFieldArray()) {
+      // If there are no context fields, we can return the Runnable as-is
+      null -> runnable
+      else -> Runnable { withLoggingContextInternal(contextFields) { runnable.run() } }
+    }
+  }
+
   override fun execute(command: Runnable) {
     wrappedExecutor.execute(wrapRunnable(command))
   }
@@ -505,27 +528,5 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
       unit: TimeUnit
   ): T {
     return wrappedExecutor.invokeAny(tasks.map { wrapCallable(it) }, timeout, unit)
-  }
-
-  private fun <T> wrapCallable(callable: Callable<T>): Callable<T> {
-    // Copy context fields here, to get the logging context of the parent thread.
-    // We then pass this to withLoggingContext in the returned Callable below, which will be invoked
-    // in the child thread, thus inheriting the parent's context fields.
-    return when (val contextFields = LoggingContext.copyFieldArray()) {
-      // If there are no context fields, we can return the Callable as-is
-      null -> callable
-      else -> Callable { withLoggingContextInternal(contextFields) { callable.call() } }
-    }
-  }
-
-  private fun wrapRunnable(runnable: Runnable): Runnable {
-    // Copy context fields here, to get the logging context of the parent thread.
-    // We then pass this to withLoggingContext in the returned Runnable below, which will be invoked
-    // in the child thread, thus inheriting the parent's context fields.
-    return when (val contextFields = LoggingContext.copyFieldArray()) {
-      // If there are no context fields, we can return the Runnable as-is
-      null -> runnable
-      else -> Runnable { withLoggingContextInternal(contextFields) { runnable.run() } }
-    }
   }
 }
