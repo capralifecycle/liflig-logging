@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory as Slf4jLoggerFactory
  * <configuration>
  *   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
  *     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
- *       <!-- Writes object values in logging context as actual JSON (not escaped) -->
+ *       <!-- Writes object values from logging context as actual JSON (not escaped) -->
  *       <mdcEntryWriter class="no.liflig.logging.LoggingContextJsonFieldWriter"/>
  *     </encoder>
  *   </appender>
