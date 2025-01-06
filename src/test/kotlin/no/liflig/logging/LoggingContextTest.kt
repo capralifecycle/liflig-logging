@@ -155,6 +155,12 @@ class LoggingContextTest {
   }
 
   @Test
+  fun `USING_LOGGING_CONTEXT_JSON_FIELD_WRITER has expected value`() {
+    // Since we use LoggingContextJsonFieldWriter in tests, we expect this to be set
+    USING_LOGGING_CONTEXT_JSON_FIELD_WRITER.shouldBeTrue()
+  }
+
+  @Test
   fun `duplicate context field keys only includes the newest fields`() {
     var outputFromInnerContext: LogOutput? = null
     // We want to verify that after exiting the inner logging context, the fields from the outer

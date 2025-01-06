@@ -502,7 +502,8 @@ internal value class OverwrittenContextFields(private val fields: Array<String?>
 }
 
 internal fun createLogFieldFromContext(key: String, value: String): LogField {
-  return if (key.endsWith(LoggingContext.JSON_FIELD_KEY_SUFFIX)) {
+  return if (USING_LOGGING_CONTEXT_JSON_FIELD_WRITER &&
+      key.endsWith(LoggingContext.JSON_FIELD_KEY_SUFFIX)) {
     JsonLogFieldFromContext(key, value)
   } else {
     StringLogFieldFromContext(key, value)
@@ -531,9 +532,9 @@ internal class StringLogFieldFromContext(
 @PublishedApi
 internal class JsonLogFieldFromContext(
     /**
-     * We construct this field with keys that already have the
-     * [LoggingContext.JSON_FIELD_KEY_SUFFIX], so we set [keyForLoggingContext] to the key with the
-     * suffix, and remove the suffix for [key] below.
+     * We construct this log field with keys that already have the JSON key suffix (see
+     * [createLogFieldFromContext]). So we set [keyForLoggingContext] to the key with the suffix,
+     * and remove the suffix for [key] below.
      */
     override val keyForLoggingContext: String,
     override val value: String,

@@ -103,9 +103,17 @@ internal class StringLogField(override val key: String, override val value: Stri
 
 @PublishedApi
 internal class JsonLogField(override val key: String, override val value: String) : LogField() {
-  override val keyForLoggingContext: String = key + LoggingContext.JSON_FIELD_KEY_SUFFIX
+  override val keyForLoggingContext: String =
+      if (USING_LOGGING_CONTEXT_JSON_FIELD_WRITER) key + LoggingContext.JSON_FIELD_KEY_SUFFIX
+      else key
 
   override fun getValueForLog() = RawJson(value)
+
+  internal companion object {
+    init {
+      ensureLoggerImplementationIsLoaded()
+    }
+  }
 }
 
 /**

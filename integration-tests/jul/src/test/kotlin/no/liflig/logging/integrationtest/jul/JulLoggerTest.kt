@@ -7,8 +7,8 @@ import io.kotest.matchers.shouldNotBe
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import kotlinx.serialization.Serializable
-import no.liflig.logging.field
 import no.liflig.logging.getLogger
+import no.liflig.logging.rawJsonField
 import no.liflig.logging.withLoggingContext
 import org.junit.jupiter.api.Test
 
@@ -26,7 +26,7 @@ class JulLoggerTest {
     val output = captureStderr {
       // slf4j-jdk14 does not support MDC, which withLoggingContext uses.
       // But we still want to test that using withLoggingContext here does not affect the log.
-      withLoggingContext(field("context", "value")) {
+      withLoggingContext(rawJsonField("contextField", """{"test":true}""")) {
         log.info {
           field("user", user)
           "Test"
@@ -54,7 +54,7 @@ class JulLoggerTest {
     shouldThrowExactly<ClassNotFoundException> { Class.forName("ch.qos.logback.classic.Logger") }
     // We also want to make sure that logstash-logback-encoder is not loaded
     shouldThrowExactly<ClassNotFoundException> {
-      Class.forName("net.logstash.logback.composite.loggingevent.mdc.MdcEntryWriter")
+      Class.forName("net.logstash.logback.encoder.LogstashEncoder")
     }
   }
 }

@@ -31,10 +31,10 @@ class Log4jLoggerTest {
     output shouldContain """"log.level":"INFO""""
     output shouldContain """"message":"Test [user={\"id\":1,\"name\":\"John Doe\"}]""""
 
-    // JSON fields in logging context adds a (json) suffix, so we can identify these fields and
-    // write them as raw JSON when using Logback. But we don't have such an implementation for
-    // Log4j, so these fields will be written with the key suffix and escaped JSON value.
-    output shouldContain """"contextField (json)":"{\"test\":true}""""
+    // When using Logback with logstash-logback-encoder, we provide a LoggingContextJsonFieldWriter
+    // for writing objects in withLoggingContext as actual JSON. But we don't have any equivalent
+    // implementation for Log4j, so the JSON will be escaped.
+    output shouldContain """"contextField":"{\"test\":true}""""
   }
 
   @Test
@@ -42,7 +42,7 @@ class Log4jLoggerTest {
     shouldThrowExactly<ClassNotFoundException> { Class.forName("ch.qos.logback.classic.Logger") }
     // We also want to make sure that logstash-logback-encoder is not loaded
     shouldThrowExactly<ClassNotFoundException> {
-      Class.forName("net.logstash.logback.composite.loggingevent.mdc.MdcEntryWriter")
+      Class.forName("net.logstash.logback.encoder.LogstashEncoder")
     }
   }
 }

@@ -113,11 +113,11 @@ fun example() {
 
 ## Adding to your project
 
-Like SLF4J, `devlog-kotlin` only provides a logging _API_, and you have to add a logging
+Like SLF4J, `liflig-logging` only provides a logging _API_, and you have to add a logging
 _implementation_ to actually output logs. Any SLF4J logger implementation will work, but the
 library is specially optimized for Logback.
 
-To set up `devlog-kotlin` with Logback and JSON output, add the following dependencies:
+To set up `liflig-logging` with Logback and JSON output, add the following dependencies:
 
 - **Maven:**
   ```xml
@@ -210,7 +210,7 @@ SOFTWARE.
 Credits also go to the
 [kotlin-logging library by Ohad Shai](https://github.com/oshai/kotlin-logging) (licensed under
 [Apache 2.0](https://github.com/oshai/kotlin-logging/blob/c91fe6ab71b9d3470fae71fb28c453006de4e584/LICENSE)),
-which inspired the `Logger {}` syntax using a lambda to get the logger name.
+which inspired the `getLogger {}` syntax using a lambda to get the logger name.
 [This kotlin-logging issue](https://github.com/oshai/kotlin-logging/issues/34) (by
 [kosiakk](https://github.com/kosiakk)) also inspired the implementation using `inline` methods for
 minimal overhead.
