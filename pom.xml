@@ -46,6 +46,7 @@
     <!-- Logging -->
     <slf4j.version>2.0.16</slf4j.version>
     <logback.version>1.5.15</logback.version>
+    <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
 
     <!-- Serialization -->
     <kotlinx-serialization.version>1.7.3</kotlinx-serialization.version>
@@ -54,7 +55,6 @@
     <!-- Testing -->
     <junit.version>5.11.4</junit.version>
     <kotest.version>5.9.1</kotest.version>
-    <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
 
     <!-- Maven plugins -->
     <spotless-maven-plugin.version>2.43.0</spotless-maven-plugin.version>
@@ -92,6 +92,18 @@
       -->
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>${logstash-logback-encoder.version}</version>
+      <!--
+        Optional - we only need this if the user:
+        - Has chosen Logback as their logger implementation
+        - Uses logstash-logback-encoder for encoding logs as JSON
+        - Wants to use our LoggingContextJsonFieldWriter
+      -->
+      <optional>true</optional>
+    </dependency>
 
     <!-- Serialization -->
     <dependency>
@@ -122,12 +134,6 @@
       <groupId>io.kotest</groupId>
       <artifactId>kotest-assertions-core-jvm</artifactId>
       <version>${kotest.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>net.logstash.logback</groupId>
-      <artifactId>logstash-logback-encoder</artifactId>
-      <version>${logstash-logback-encoder.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

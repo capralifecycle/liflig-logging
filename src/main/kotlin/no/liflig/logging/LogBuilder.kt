@@ -4,7 +4,7 @@ import kotlinx.serialization.SerializationStrategy
 
 /**
  * Class used in the logging methods on [Logger], allowing you to set a [cause] exception and
- * [add structured key-value data][addField] to a log.
+ * [add structured key-value data][field] to a log.
  *
  * ### Example
  *
@@ -16,10 +16,10 @@ import kotlinx.serialization.SerializationStrategy
  *     storeUser(user)
  *   } catch (e: Exception) {
  *     // The lambda argument passed to this logger method has a LogBuilder as its receiver, which
- *     // means that you can set `LogBuilder.cause` and call `LogBuilder.addField` in this scope.
+ *     // means that you can set `LogBuilder.cause` and call `LogBuilder.field` in this scope.
  *     log.error {
  *       cause = e
- *       addField("user", user)
+ *       field("user", user)
  *       "Failed to store user in database"
  *     }
  *   }
@@ -41,8 +41,8 @@ internal constructor(
    * LoggingEvent API).
    */
   var cause: Throwable?
-    set(value) = logEvent.setThrowable(value)
-    get() = logEvent.getThrowable()
+    set(value) = logEvent.setCause(value)
+    get() = logEvent.getCause()
 
   /**
    * Adds a [log field][LogField] (structured key-value data) to the log.
@@ -56,7 +56,7 @@ internal constructor(
    * Alternatively, you can pass your own serializer for the value. If serialization fails, we fall
    * back to calling `toString()` on the value.
    *
-   * If you have a value that is already serialized, you should use [addRawJsonField] instead.
+   * If you have a value that is already serialized, you should use [rawJsonField] instead.
    *
    * ### Example
    *
@@ -70,12 +70,13 @@ internal constructor(
    *   val user = User(id = 1, name = "John Doe")
    *
    *   log.info {
-   *     addField("user", user)
+   *     field("user", user)
    *     "Registered new user"
    *   }
    * }
    *
-   * @Serializable data class User(val id: Long, val name: String)
+   * @Serializable
+   * data class User(val id: Long, val name: String)
    * ```
    *
    * This gives the following output (using `logstash-logback-encoder`):
@@ -90,13 +91,18 @@ internal constructor(
    * }
    * ```
    */
-  inline fun <reified ValueT> addField(
+  inline fun <reified ValueT : Any> field(
       key: String,
-      value: ValueT,
+      value: ValueT?,
       serializer: SerializationStrategy<ValueT>? = null,
   ) {
-    if (!keyAdded(key)) {
-      logEvent.addKeyValue(key, encodeFieldValue(value, serializer))
+    if (!logEvent.isFieldKeyAdded(key)) {
+      encodeFieldValue(
+          value,
+          serializer,
+          onJson = { jsonValue -> logEvent.addField(key, RawJson(jsonValue)) },
+          onString = { stringValue -> logEvent.addField(key, stringValue) },
+      )
     }
   }
 
@@ -135,42 +141,35 @@ internal constructor(
    * {"message":"Registered new user","user":{"id":1,"name":"John Doe"},/* ...timestamp etc. */}
    * ```
    */
-  fun addRawJsonField(key: String, json: String, validJson: Boolean = false) {
-    if (!keyAdded(key)) {
-      logEvent.addKeyValue(key, rawJsonFieldValue(json, validJson))
+  fun rawJsonField(key: String, json: String, validJson: Boolean = false) {
+    if (!logEvent.isFieldKeyAdded(key)) {
+      validateRawJson(
+          json,
+          validJson,
+          onValidJson = { jsonValue -> logEvent.addField(key, RawJson(jsonValue)) },
+          onInvalidJson = { stringValue -> logEvent.addField(key, stringValue) },
+      )
     }
   }
 
   /**
    * Adds the given [log field][LogField] to the log. This is useful when you have a previously
-   * constructed field from the [field][no.liflig.logging.field]/[rawJsonField] functions.
-   * - If you want to create a new field and add it to the log, you should instead call [addField]
+   * constructed field from the
+   * [field][no.liflig.logging.field]/[rawJsonField][no.liflig.logging.rawJsonField] functions.
+   * - If you want to create a new field and add it to the log, you should instead call
+   *   [LogBuilder.field]
    * - If you want to add the field to all logs within a scope, you should instead use
    *   [withLoggingContext]
    */
-  fun addPreconstructedField(field: LogField) {
-    if (!keyAdded(field.key)) {
-      logEvent.addKeyValue(field.key, field.value)
-    }
+  fun existingField(field: LogField) {
+    addFieldToLog(field)
   }
 
   @PublishedApi
   internal fun finalize(message: String) {
     logEvent.setMessage(message)
 
-    // Add fields from cause exception first, as we prioritize them over context fields
     addFieldsFromCauseException()
-    addFieldsFromContext()
-  }
-
-  /** Adds log fields from [withLoggingContext]. */
-  private fun addFieldsFromContext() {
-    LoggingContext.getFields().forEach { field ->
-      // Don't add fields with keys that have already been added
-      if (!keyAdded(field.key)) {
-        logEvent.addKeyValue(field.key, field.value)
-      }
-    }
   }
 
   /**
@@ -191,12 +190,7 @@ internal constructor(
     var depth = 0
     while (exception != null && depth < 10) {
       if (exception is WithLogFields) {
-        exception.logFields.forEach { field ->
-          // Don't add fields with keys that have already been added
-          if (!keyAdded(field.key)) {
-            logEvent.addKeyValue(field.key, field.value)
-          }
-        }
+        exception.logFields.forEach(::addFieldToLog)
       }
 
       exception = exception.cause
@@ -204,10 +198,50 @@ internal constructor(
     }
   }
 
-  @PublishedApi
-  internal fun keyAdded(key: String): Boolean {
-    val addedFields = logEvent.getKeyValuePairs() ?: return false
+  private fun addFieldToLog(field: LogField) {
+    // Don't add fields with keys that have already been added
+    if (!logEvent.isFieldKeyAdded(field.key)) {
+      val value = field.getValueForLog()
+      if (value != null) {
+        logEvent.addField(field.key, value)
+      }
+    }
+  }
 
-    return addedFields.any { field -> field.key == key }
+  // Kept around for backwards compatibility.
+  // TODO: Remove after users have migrated.
+  @Deprecated(
+      "Renamed to 'field'.",
+      ReplaceWith("field(key, value, serializer)"),
+      DeprecationLevel.ERROR,
+  )
+  inline fun <reified ValueT> addField(
+      key: String,
+      value: ValueT,
+      serializer: SerializationStrategy<ValueT>? = null,
+  ) {
+    field(key, value, serializer)
+  }
+
+  // Kept around for backwards compatibility.
+  // TODO: Remove after users have migrated.
+  @Deprecated(
+      "Renamed to 'rawJsonField'.",
+      ReplaceWith("rawJsonField(key, json, validJson)"),
+      DeprecationLevel.ERROR,
+  )
+  fun addRawJsonField(key: String, json: String, validJson: Boolean = false) {
+    rawJsonField(key, json, validJson)
+  }
+
+  // Kept around for backwards compatibility.
+  // TODO: Remove after users have migrated.
+  @Deprecated(
+      "Renamed to 'existingField'.",
+      ReplaceWith("existingField(field)"),
+      DeprecationLevel.ERROR,
+  )
+  fun addPreconstructedField(field: LogField) {
+    existingField(field)
   }
 }

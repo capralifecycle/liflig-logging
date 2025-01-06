@@ -68,21 +68,22 @@ open class ExceptionWithLogFields(
 
 /** Combines the given log fields with any fields from [withLoggingContext]. */
 private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<LogField> {
-  val contextFields = LoggingContext.getFields()
+  val contextFields = LoggingContext.getFieldMap()
 
   // If logging context is empty, we just use the given field list, to avoid allocating an
   // additional list
-  if (contextFields.isEmpty()) {
+  if (contextFields.isNullOrEmpty()) {
     return logFields
   }
 
-  // We have to copy the fields from the logging context into a new list, because the exception may
-  // escape the logging context, which would remove fields from the list that we want to include on
-  // the exception
-  val combinedFields = ArrayList<LogField>(logFields.size + contextFields.size)
+  val combinedFields =
+      ArrayList<LogField>(
+          // Initialize capacity for both exception fields and context fields
+          logFields.size + LoggingContext.getNonNullFieldCount(contextFields),
+      )
   // Add exception log fields first, so they show first in the log output
   combinedFields.addAll(logFields)
-  contextFields.forEach { field -> combinedFields.add(field) }
+  LoggingContext.mapFieldMapToList(contextFields, target = combinedFields)
   return combinedFields
 }
 

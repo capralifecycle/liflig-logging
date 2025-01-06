@@ -1,6 +1,7 @@
 package no.liflig.logging
 
 import io.kotest.assertions.withClue
+import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import java.math.BigDecimal
@@ -8,10 +9,10 @@ import java.net.URI
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonNull
 import org.junit.jupiter.api.Test
 
 private val log = getLogger {}
@@ -19,14 +20,14 @@ private val log = getLogger {}
 class LogFieldTest {
   @Test
   fun `basic log field test`() {
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("key", "value")
+        field("key", "value")
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "key":"value"
         """
@@ -35,18 +36,16 @@ class LogFieldTest {
 
   @Test
   fun `log field with Serializable object`() {
-    @Serializable data class User(val id: Int, val name: String)
-
     val user = User(id = 1, name = "John Doe")
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("user", user)
+        field("user", user)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "user":{"id":1,"name":"John Doe"}
         """
@@ -55,16 +54,16 @@ class LogFieldTest {
 
   @Test
   fun `multiple log fields`() {
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("first", true)
-        addField("second", listOf("value1", "value2"))
-        addField("third", 10)
+        field("first", true)
+        field("second", listOf("value1", "value2"))
+        field("third", 10)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "first":true,"second":["value1","value2"],"third":10
         """
@@ -73,22 +72,22 @@ class LogFieldTest {
 
   @Test
   fun `special-case types`() {
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("instant", Instant.parse("2024-12-09T16:38:23Z"))
-        addField("uri", URI.create("https://example.com"))
-        addField("url", URL("https://example.com"))
-        addField("uuid", UUID.fromString("3638dd04-d196-41ad-8b15-5188a22a6ba4"))
-        addField("bigDecimal", BigDecimal("100.0"))
+        field("instant", Instant.parse("2024-12-09T16:38:23Z"))
+        field("uri", URI.create("https://example.com"))
+        field("url", URL("https://example.com"))
+        field("uuid", UUID.fromString("3638dd04-d196-41ad-8b15-5188a22a6ba4"))
+        field("bigDecimal", BigDecimal("100.0"))
         "Test"
       }
     }
 
-    logFields shouldContain """"instant":"2024-12-09T16:38:23Z""""
-    logFields shouldContain """"uri":"https://example.com""""
-    logFields shouldContain """"url":"https://example.com""""
-    logFields shouldContain """"uuid":"3638dd04-d196-41ad-8b15-5188a22a6ba4""""
-    logFields shouldContain """"bigDecimal":"100.0""""
+    output.logFields shouldContain """"instant":"2024-12-09T16:38:23Z""""
+    output.logFields shouldContain """"uri":"https://example.com""""
+    output.logFields shouldContain """"url":"https://example.com""""
+    output.logFields shouldContain """"uuid":"3638dd04-d196-41ad-8b15-5188a22a6ba4""""
+    output.logFields shouldContain """"bigDecimal":"100.0""""
   }
 
   @Test
@@ -102,52 +101,82 @@ class LogFieldTest {
           }
         }
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("key", "value", serializer = prefixSerializer)
+        field("key", "value", serializer = prefixSerializer)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "key":"Prefix: value"
         """
             .trimIndent()
   }
 
+  /**
+   * On [field] and [LogBuilder.field], we place a non-nullable `Any` bound on the `ValueT` type
+   * parameter, and type the `value` parameter as `ValueT?`. This is to support passing in a custom
+   * serializer for a type, but still allow passing in `null` for the value (since this is handled
+   * before checking the serializer in [encodeFieldValue]). This test checks that this works.
+   */
+  @Test
+  fun `custom serializer with nullable value`() {
+    val user: User? = null
+
+    val output = captureLogOutput {
+      withLoggingContext(
+          // Test `field` in context and on log, since these are different functions
+          field("userInContext", user, User.serializer()),
+      ) {
+        log.info {
+          field("user", user, User.serializer())
+          "Test"
+        }
+      }
+    }
+
+    output.logFields shouldBe
+        """
+          "user":null
+        """
+            .trimIndent()
+    output.contextFields shouldContainExactly mapOf("userInContext" to JsonNull)
+  }
+
   @Test
   fun `non-serializable object falls back to toString`() {
-    data class User(val id: Int, val name: String)
+    data class NonSerializableUser(val id: Long, val name: String)
 
-    val user = User(id = 1, name = "John Doe")
+    val user = NonSerializableUser(id = 1, name = "John Doe")
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("user", user)
+        field("user", user)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
-          "user":"User(id=1, name=John Doe)"
+          "user":"NonSerializableUser(id=1, name=John Doe)"
         """
             .trimIndent()
   }
 
   @Test
   fun `duplicate field keys only includes the first field`() {
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("duplicateKey", "value1")
-        addField("duplicateKey", "value2")
-        addField("duplicateKey", "value3")
+        field("duplicateKey", "value1")
+        field("duplicateKey", "value2")
+        field("duplicateKey", "value3")
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "duplicateKey":"value1"
         """
@@ -158,14 +187,14 @@ class LogFieldTest {
   fun `null field value is allowed`() {
     val nullValue: String? = null
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addField("key", nullValue)
+        field("key", nullValue)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "key":null
         """
@@ -179,14 +208,14 @@ class LogFieldTest {
     // The above JSON should work both for validJson = true and validJson = false
     for (assumeValidJson in listOf(true, false)) {
       withClue({ "assumeValidJson = ${assumeValidJson}" }) {
-        val logFields = captureLogFields {
+        val output = captureLogOutput {
           log.info {
-            addRawJsonField("user", userJson, validJson = assumeValidJson)
+            rawJsonField("user", userJson, validJson = assumeValidJson)
             "Test"
           }
         }
 
-        logFields shouldBe
+        output.logFields shouldBe
             """
               "user":${userJson}
             """
@@ -199,14 +228,14 @@ class LogFieldTest {
   fun `addRawJsonField escapes invalid JSON by default`() {
     val invalidJson = """{"id":1"""
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addRawJsonField("user", invalidJson)
+        rawJsonField("user", invalidJson)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "user":"{\"id\":1"
         """
@@ -223,14 +252,14 @@ class LogFieldTest {
   fun `addRawJsonField does not escape invalid JSON when validJson is set to true`() {
     val invalidJson = """{"id":1"""
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addRawJsonField("user", invalidJson, validJson = true)
+        rawJsonField("user", invalidJson, validJson = true)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "user":${invalidJson}
         """
@@ -248,14 +277,14 @@ class LogFieldTest {
         """
             .trimIndent()
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addRawJsonField("user", jsonWithNewlines)
+        rawJsonField("user", jsonWithNewlines)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "user":{"id":1,"name":"John Doe"}
         """
@@ -266,14 +295,14 @@ class LogFieldTest {
   fun `addPreconstructedField allows adding a previously constructed field to the log`() {
     val existingField = field("key", "value")
 
-    val logFields = captureLogFields {
+    val output = captureLogOutput {
       log.info {
-        addPreconstructedField(existingField)
+        existingField(existingField)
         "Test"
       }
     }
 
-    logFields shouldBe
+    output.logFields shouldBe
         """
           "key":"value"
         """

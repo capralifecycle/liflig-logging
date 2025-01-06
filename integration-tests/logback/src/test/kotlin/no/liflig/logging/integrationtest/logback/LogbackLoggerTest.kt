@@ -6,6 +6,8 @@ import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import kotlinx.serialization.Serializable
 import no.liflig.logging.getLogger
+import no.liflig.logging.rawJsonField
+import no.liflig.logging.withLoggingContext
 import org.junit.jupiter.api.Test
 
 private val log = getLogger {}
@@ -18,20 +20,27 @@ class LogbackLoggerTest {
     val user = User(id = 1, name = "John Doe")
 
     val output = captureStdout {
-      log.info {
-        addField("user", user)
-        "Test"
+      withLoggingContext(rawJsonField("contextField", """{"test":true}""")) {
+        log.info {
+          field("user", user)
+          "Test"
+        }
       }
     }
 
     output shouldContain """"level":"INFO""""
     output shouldContain """"message":"Test""""
     output shouldContain """"user":{"id":1,"name":"John Doe"}"""
+    output shouldContain """"contextField":{"test":true}"""
   }
 
   @Test
   fun `Logback should be on classpath`() {
     shouldNotThrowAny { Class.forName("ch.qos.logback.classic.Logger") }
+    // We also want to make sure that logstash-logback-encoder is loaded
+    shouldNotThrowAny {
+      Class.forName("net.logstash.logback.composite.loggingevent.mdc.MdcEntryWriter")
+    }
   }
 }
 

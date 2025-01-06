@@ -64,33 +64,14 @@ internal interface LogEvent {
   /** Already implemented by [BaseLogbackEvent.setMessage] and [BaseSlf4jEvent.setMessage]. */
   fun setMessage(message: String)
 
-  /**
-   * Already implemented by [BaseSlf4jEvent.setThrowable], must be implemented for Logback using
-   * [BaseLogbackEvent.setThrowableProxy].
-   */
-  fun setThrowable(cause: Throwable?)
+  fun setCause(cause: Throwable?)
 
-  /**
-   * Already implemented by [BaseSlf4jEvent.getThrowable], must be implemented for Logback using
-   * [BaseLogbackEvent.getThrowableProxy].
-   */
-  fun getThrowable(): Throwable?
+  fun getCause(): Throwable?
 
-  /**
-   * Already implemented by [BaseSlf4jEvent.addKeyValue], must be implemented for Logback using
-   * [BaseLogbackEvent.addKeyValuePair].
-   */
-  fun addKeyValue(key: String, value: Any?)
+  fun addField(key: String, value: LogFieldValue)
 
-  /**
-   * Returns null if no key-value pairs have been added yet.
-   *
-   * Already implemented by [BaseLogbackEvent.getKeyValuePairs] and
-   * [BaseSlf4jEvent.getKeyValuePairs].
-   */
-  fun getKeyValuePairs(): List<KeyValuePair>?
+  fun isFieldKeyAdded(key: String): Boolean
 
-  /** Must be implemented for both Logback and SLF4J. */
   fun log(logger: Slf4jLogger)
 }
 
@@ -108,7 +89,7 @@ internal class LogbackLogEvent(
         null, // throwable (may be set by LogBuilder)
         null, // argArray (we don't use this)
     ) {
-  override fun setThrowable(cause: Throwable?) {
+  override fun setCause(cause: Throwable?) {
     /**
      * Passing null to [ThrowableProxy] will throw, so we must only call it if cause is not null. We
      * still want to allow passing null here, to support the case where the user has a cause
@@ -119,15 +100,21 @@ internal class LogbackLogEvent(
      * rather ignore the second cause exception than throw an exception from our logger method, so
      * we only set throwableProxy here if it has not already been set.
      */
-    if (cause != null && throwableProxy == null) {
-      setThrowableProxy(ThrowableProxy(cause))
+    if (cause != null && super.getThrowableProxy() == null) {
+      super.setThrowableProxy(ThrowableProxy(cause))
     }
   }
 
-  override fun getThrowable(): Throwable? = (throwableProxy as? ThrowableProxy)?.throwable
+  override fun getCause(): Throwable? = (super.getThrowableProxy() as? ThrowableProxy)?.throwable
 
-  override fun addKeyValue(key: String, value: Any?) {
+  override fun addField(key: String, value: LogFieldValue) {
     super.addKeyValuePair(KeyValuePair(key, value))
+  }
+
+  override fun isFieldKeyAdded(key: String): Boolean {
+    // getKeyValuePairs may return null if no fields have been added yet
+    val fields = super.getKeyValuePairs() ?: return false
+    return fields.any { it.key == key }
   }
 
   override fun log(logger: Slf4jLogger) {
@@ -179,6 +166,18 @@ internal class Slf4jLogEvent(level: LogLevel, logger: Slf4jLogger) :
   init {
     super.setCallerBoundary(FULLY_QUALIFIED_CLASS_NAME)
     super.setTimeStamp(System.currentTimeMillis())
+  }
+
+  override fun setCause(cause: Throwable?) = super.setThrowable(cause)
+
+  override fun getCause(): Throwable? = super.getThrowable()
+
+  override fun addField(key: String, value: LogFieldValue) = super.addKeyValue(key, value)
+
+  override fun isFieldKeyAdded(key: String): Boolean {
+    // getKeyValuePairs may return null if no fields have been added yet
+    val fields = super.getKeyValuePairs() ?: return false
+    return fields.any { it.key == key }
   }
 
   override fun log(logger: Slf4jLogger) {

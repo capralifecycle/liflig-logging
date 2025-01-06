@@ -82,7 +82,7 @@ internal constructor(
    * Logs the message returned by the given function at the INFO log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.addField].
+   * receiver, and add structured key-value data with [LogBuilder.field].
    *
    * ### Example
    *
@@ -91,7 +91,7 @@ internal constructor(
    *
    * fun example(user: User) {
    *   log.info {
-   *     addField("user", user)
+   *     field("user", user)
    *     "Registered new user"
    *   }
    * }
@@ -115,7 +115,7 @@ internal constructor(
    * Logs the message returned by the given function at the WARN log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.addField].
+   * receiver, and add structured key-value data with [LogBuilder.field].
    *
    * ### Example
    *
@@ -128,7 +128,7 @@ internal constructor(
    *   } catch (e: Exception) {
    *     log.warn {
    *       cause = e
-   *       addField("user", user)
+   *       field("user", user)
    *       "Failed to send welcome email to user"
    *     }
    *   }
@@ -153,7 +153,7 @@ internal constructor(
    * Logs the message returned by the given function at the ERROR log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.addField].
+   * receiver, and add structured key-value data with [LogBuilder.field].
    *
    * ### Example
    *
@@ -166,7 +166,7 @@ internal constructor(
    *   } catch (e: Exception) {
    *     log.error {
    *       cause = e
-   *       addField("user", user)
+   *       field("user", user)
    *       "Failed to store user in database"
    *     }
    *   }
@@ -191,7 +191,7 @@ internal constructor(
    * Logs the message returned by the given function at the DEBUG log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.addField].
+   * receiver, and add structured key-value data with [LogBuilder.field].
    *
    * ### Example
    *
@@ -200,7 +200,7 @@ internal constructor(
    *
    * fun example(user: User) {
    *   log.debug {
-   *     addField("user", user)
+   *     field("user", user)
    *     "Received new sign-up request"
    *   }
    * }
@@ -224,7 +224,7 @@ internal constructor(
    * Logs the message returned by the given function at the TRACE log level, if enabled.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.addField].
+   * receiver, and add structured key-value data with [LogBuilder.field].
    *
    * ### Example
    *
@@ -233,7 +233,7 @@ internal constructor(
    *
    * fun example(user: User) {
    *   log.trace {
-   *     addField("user", user)
+   *     field("user", user)
    *     "Started processing user request"
    *   }
    * }
@@ -259,7 +259,7 @@ internal constructor(
    * [info]/[warn]/[error]/[debug]/[trace] conditionally.
    *
    * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.addField].
+   * receiver, and add structured key-value data with [LogBuilder.field].
    *
    * ### Example
    *
@@ -273,7 +273,7 @@ internal constructor(
    *     val logLevel = if (e is IOException) LogLevel.ERROR else LogLevel.WARN
    *     log.at(logLevel) {
    *       cause = e
-   *       addField("user", user)
+   *       field("user", user)
    *       "Failed to send welcome email to user"
    *     }
    *   }

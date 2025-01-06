@@ -12,7 +12,6 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.time.Instant
-import kotlinx.serialization.Serializable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -48,8 +47,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.INFO) {
       test.logger.info {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -61,8 +60,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.WARN) {
       test.logger.warn {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -74,8 +73,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.ERROR) {
       test.logger.error {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -87,8 +86,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.DEBUG) {
       test.logger.debug {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -100,8 +99,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.TRACE) {
       test.logger.trace {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -113,8 +112,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.INFO) {
       test.logger.at(LogLevel.INFO) {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -126,8 +125,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.WARN) {
       test.logger.at(LogLevel.WARN) {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -139,8 +138,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.ERROR) {
       test.logger.at(LogLevel.ERROR) {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -152,8 +151,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.DEBUG) {
       test.logger.at(LogLevel.DEBUG) {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -165,8 +164,8 @@ internal class LoggerTest {
     test.verifyLogOutput(LogLevel.TRACE) {
       test.logger.at(LogLevel.TRACE) {
         cause = test.cause
-        addField(test.fieldKey1, test.fieldValue1)
-        addField(test.fieldKey2, test.fieldValue2)
+        field(test.fieldKey1, test.fieldValue1)
+        field(test.fieldKey2, test.fieldValue2)
         test.message
       }
     }
@@ -292,7 +291,7 @@ internal class LoggerTest {
     }
   }
 
-  /** See comment in [LogbackLogEvent.setThrowable]. */
+  /** See comment in [LogbackLogEvent.setCause]. */
   @Test
   fun `cause exception can be set to null`() {
     log.error {
@@ -301,7 +300,7 @@ internal class LoggerTest {
     }
   }
 
-  /** See comment in [LogBuilder.cause] setter and [LogbackLogEvent.setThrowable]. */
+  /** See comment in [LogBuilder.cause] setter and [LogbackLogEvent.setCause]. */
   @Test
   fun `setting cause multiple times only keeps the first non-null exception`() {
     val exception1 = Exception("Exception 1")
@@ -339,9 +338,6 @@ internal class LoggerTest {
       val shouldHaveCorrectFileLocation: Boolean = true,
   ) {
     override fun toString() = name
-
-    /** To test log fields with object values. */
-    @Serializable data class User(val id: Int, val name: String)
   }
 
   val loggerTestCases =
