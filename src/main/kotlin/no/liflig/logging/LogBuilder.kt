@@ -200,41 +200,4 @@ internal constructor(
       }
     }
   }
-
-  // Kept around for backwards compatibility.
-  // TODO: Remove after users have migrated.
-  @Deprecated(
-      "Renamed to 'field'.",
-      ReplaceWith("field(key, value, serializer)"),
-      DeprecationLevel.ERROR,
-  )
-  public inline fun <reified ValueT> addField(
-      key: String,
-      value: ValueT,
-      serializer: SerializationStrategy<ValueT>? = null,
-  ) {
-    field(key, value, serializer)
-  }
-
-  // Kept around for backwards compatibility.
-  // TODO: Remove after users have migrated.
-  @Deprecated(
-      "Renamed to 'rawJsonField'.",
-      ReplaceWith("rawJsonField(key, json, validJson)"),
-      DeprecationLevel.ERROR,
-  )
-  public fun addRawJsonField(key: String, json: String, validJson: Boolean = false) {
-    rawJsonField(key, json, validJson)
-  }
-
-  // Kept around for backwards compatibility.
-  // TODO: Remove after users have migrated.
-  @Deprecated(
-      "Renamed to 'existingField'.",
-      ReplaceWith("existingField(field)"),
-      DeprecationLevel.ERROR,
-  )
-  public fun addPreconstructedField(field: LogField) {
-    existingField(field)
-  }
 }
