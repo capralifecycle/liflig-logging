@@ -20,6 +20,12 @@ import org.slf4j.MDC
  * object values as actual JSON (not escaped strings), you can use [LoggingContextJsonFieldWriter]
  * with Logback.
  *
+ * ### Note on coroutines
+ *
+ * SLF4J's `MDC` uses a thread-local, so it won't work by default with Kotlin coroutines and
+ * `suspend` functions. If you use coroutines, you can solve this with
+ * [`MDCContext` from `kotlinx-coroutines-slf4j`](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-slf4j/kotlinx.coroutines.slf4j/-m-d-c-context/).
+ *
  * ### Example
  *
  * ```
@@ -44,12 +50,6 @@ import org.slf4j.MDC
  * { "message": "Started processing event", "event": { ... } }
  * { "message": "Finished processing event", "event": { ... } }
  * ```
- *
- * ### Note on coroutines
- *
- * SLF4J's `MDC` uses a thread-local, so it won't work by default with Kotlin coroutines and
- * `suspend` functions (though it does work with Java virtual threads). You can solve this with
- * [`kotlinx-coroutines-slf4j`](https://github.com/Kotlin/kotlinx.coroutines/blob/ee92d16c4b48345648dcd8bb15f11ab9c3747f67/integration/kotlinx-coroutines-slf4j/README.md).
  */
 public inline fun <ReturnT> withLoggingContext(
     vararg logFields: LogField,
@@ -73,7 +73,13 @@ public inline fun <ReturnT> withLoggingContext(
  *
  * This overload of the function takes a list instead of varargs, for when you already have a list
  * of log fields available. This can be used together with [getLoggingContext] to pass context
- * fields between threads (see example in [getLoggingContext] docstring).
+ * fields between threads ([see example][getLoggingContext]).
+ *
+ * ### Note on coroutines
+ *
+ * SLF4J's `MDC` uses a thread-local, so it won't work by default with Kotlin coroutines and
+ * `suspend` functions. If you use coroutines, you can solve this with
+ * [`MDCContext` from `kotlinx-coroutines-slf4j`](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-slf4j/kotlinx.coroutines.slf4j/-m-d-c-context/).
  *
  * ### Example
  *
@@ -99,12 +105,6 @@ public inline fun <ReturnT> withLoggingContext(
  * { "message": "Started processing event", "event": { /* ... */  } }
  * { "message": "Finished processing event", "event": { /* ... */  } }
  * ```
- *
- * ### Note on coroutines
- *
- * SLF4J's `MDC` uses a thread-local, so it won't work by default with Kotlin coroutines and
- * `suspend` functions (though it does work with Java virtual threads). You can solve this with
- * [`kotlinx-coroutines-slf4j`](https://github.com/Kotlin/kotlinx.coroutines/blob/ee92d16c4b48345648dcd8bb15f11ab9c3747f67/integration/kotlinx-coroutines-slf4j/README.md).
  */
 public inline fun <ReturnT> withLoggingContext(
     logFields: List<LogField>,
