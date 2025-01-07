@@ -12,8 +12,8 @@ Logging library for Kotlin JVM, that thinly wraps SLF4J and Logback to provide a
 ## Usage
 
 The `Logger` class is the entry point to `liflig-logging`'s API. You can get a `Logger` by calling
-`getLogger`, with an empty lambda to automatically give the logger the name of its containing class
-(or file, if defined at the top level).
+`getLogger {}`, which automatically gives the logger the name of its containing class (or file, if
+defined at the top level).
 
 ```kotlin
 // File Example.kt
@@ -42,14 +42,14 @@ You can also add _fields_ (structured key-value data) to your logs. The `field` 
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class User(val id: Long, val name: String)
+data class Event(val id: Long, val type: String)
 
 fun example() {
-  val user = User(id = 1, name = "John Doe")
+  val event = Event(id = 1001, type = "ORDER_UPDATED")
 
   log.info {
-    field("user", user)
-    "Registered new user"
+    field("event", event)
+    "Processing event"
   }
 }
 ```
@@ -61,10 +61,10 @@ a more structured manner than if you were to just use string concatenation.
 <!-- prettier-ignore -->
 ```jsonc
 {
-  "message": "Registered new user",
-  "user": {
-    "id": 1,
-    "name": "John Doe"
+  "message": "Processing event",
+  "event": {
+    "id": 1001,
+    "type": "ORDER_UPDATED"
   },
   // ...timestamp etc.
 }
@@ -96,17 +96,14 @@ Note that `withLoggingContext` uses a thread-local to provide log fields to the 
 work with Kotlin coroutines and `suspend` functions (though it does work with Java virtual threads).
 An alternative that supports coroutines may be added in a future version of the library.
 
-Finally, you can attach a `cause` exception to logs:
+Finally, you can attach a cause exception to logs:
 
 ```kotlin
 fun example() {
   try {
     callExternalService()
   } catch (e: Exception) {
-    log.error {
-      cause = e
-      "Request to external service failed"
-    }
+    log.error(e) { "Request to external service failed" }
   }
 }
 ```
