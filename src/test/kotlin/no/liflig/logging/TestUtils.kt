@@ -196,6 +196,7 @@ internal class PlainSlf4jLogger(
   }
 }
 
+/** Serializable example class for tests. */
 @Serializable internal data class Event(val id: Long, val type: EventType)
 
 internal enum class EventType {
