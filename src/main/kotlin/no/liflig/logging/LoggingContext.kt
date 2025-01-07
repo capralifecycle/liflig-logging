@@ -4,6 +4,7 @@ import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
+import org.slf4j.LoggerFactory as Slf4jLoggerFactory
 import org.slf4j.MDC
 
 /**
@@ -16,8 +17,8 @@ import org.slf4j.MDC
  * all logs inside that context will include the event.
  *
  * The implementation uses [MDC] from SLF4J, which only supports String values by default. To encode
- * object values as actual JSON (not escaped strings), you can configure
- * [LoggingContextJsonFieldWriter].
+ * object values as actual JSON (not escaped strings), you can use [LoggingContextJsonFieldWriter]
+ * with Logback.
  *
  * ### Example
  *
@@ -40,8 +41,8 @@ import org.slf4j.MDC
  * If you have configured [LoggingContextJsonFieldWriter], the field from `withLoggingContext` will
  * then be attached to every log as follows:
  * ```json
- * { "message": "Started processing event", "event": { /* ... */  } }
- * { "message": "Finished processing event", "event": { /* ... */  } }
+ * { "message": "Started processing event", "event": { ... } }
+ * { "message": "Finished processing event", "event": { ... } }
  * ```
  *
  * ### Note on coroutines
@@ -50,7 +51,10 @@ import org.slf4j.MDC
  * `suspend` functions (though it does work with Java virtual threads). You can solve this with
  * [`kotlinx-coroutines-slf4j`](https://github.com/Kotlin/kotlinx.coroutines/blob/ee92d16c4b48345648dcd8bb15f11ab9c3747f67/integration/kotlinx-coroutines-slf4j/README.md).
  */
-inline fun <ReturnT> withLoggingContext(vararg logFields: LogField, block: () -> ReturnT): ReturnT {
+public inline fun <ReturnT> withLoggingContext(
+    vararg logFields: LogField,
+    block: () -> ReturnT
+): ReturnT {
   return withLoggingContextInternal(logFields, block)
 }
 
@@ -102,7 +106,10 @@ inline fun <ReturnT> withLoggingContext(vararg logFields: LogField, block: () ->
  * `suspend` functions (though it does work with Java virtual threads). You can solve this with
  * [`kotlinx-coroutines-slf4j`](https://github.com/Kotlin/kotlinx.coroutines/blob/ee92d16c4b48345648dcd8bb15f11ab9c3747f67/integration/kotlinx-coroutines-slf4j/README.md).
  */
-inline fun <ReturnT> withLoggingContext(logFields: List<LogField>, block: () -> ReturnT): ReturnT {
+public inline fun <ReturnT> withLoggingContext(
+    logFields: List<LogField>,
+    block: () -> ReturnT
+): ReturnT {
   return withLoggingContextInternal(logFields.toTypedArray(), block)
 }
 
@@ -144,6 +151,9 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  *
  * ### Example
  *
+ * Scenario: We store an updated order in a database, and then want to asynchronously update
+ * statistics for the order.
+ *
  * ```
  * import no.liflig.logging.field
  * import no.liflig.logging.getLogger
@@ -153,23 +163,22 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  *
  * private val log = getLogger {}
  *
- * class UserService(
- *     private val userRepository: UserRepository,
- *     private val emailService: EmailService,
+ * class OrderService(
+ *     private val orderRepository: OrderRepository,
+ *     private val statisticsService: StatisticsService,
  * ) {
- *   fun registerUser(user: User) {
- *     withLoggingContext(field("user", user)) {
- *       userRepository.create(user)
- *       sendWelcomeEmail(user)
+ *   fun updateOrder(order: Order) {
+ *     withLoggingContext(field("order", order)) {
+ *       orderRepository.update(order)
+ *       updateStatistics(order)
  *     }
  *   }
  *
- *   // In this hypothetical, we don't want sendWelcomeEmail to block registerUser, so we spawn a
- *   // thread.
+ *   // In this scenario, we don't want updateStatistics to block updateOrder, so we spawn a thread.
  *   //
  *   // But we want to log if it fails, and include the logging context from the parent thread.
  *   // This is where getLoggingContext comes in.
- *   private fun sendWelcomeEmail(user: User) {
+ *   private fun updateStatistics(order: Order) {
  *     // We call getLoggingContext here, to copy the context fields from the parent thread
  *     val loggingContext = getLoggingContext()
  *
@@ -177,13 +186,10 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  *       // We then pass the parent context to withLoggingContext here in the child thread
  *       withLoggingContext(loggingContext) {
  *         try {
- *           emailService.sendEmail(to = user.email, content = makeWelcomeEmailContent(user))
+ *           statisticsService.orderUpdated(order)
  *         } catch (e: Exception) {
- *           // This log will get the "user" field from the parent logging context
- *           log.error {
- *             cause = e
- *             "Failed to send welcome email to user"
- *           }
+ *           // This log will get the "order" field from the parent logging context
+ *           log.error(e) { "Failed to update order statistics" }
  *         }
  *       }
  *     }
@@ -191,7 +197,7 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  * }
  * ```
  */
-fun getLoggingContext(): List<LogField> {
+public fun getLoggingContext(): List<LogField> {
   return LoggingContext.getFieldList()
 }
 
@@ -203,6 +209,9 @@ fun getLoggingContext(): List<LogField> {
  *
  * ### Example
  *
+ * Scenario: We store an updated order in a database, and then want to asynchronously update
+ * statistics for the order.
+ *
  * ```
  * import no.liflig.logging.field
  * import no.liflig.logging.getLogger
@@ -212,42 +221,39 @@ fun getLoggingContext(): List<LogField> {
  *
  * private val log = getLogger {}
  *
- * class UserService(
- *     private val userRepository: UserRepository,
- *     private val emailService: EmailService,
+ * class OrderService(
+ *     private val orderRepository: OrderRepository,
+ *     private val statisticsService: StatisticsService,
  * ) {
  *   // Call inheritLoggingContext on the executor
  *   private val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
  *
- *   fun registerUser(user: User) {
- *     withLoggingContext(field("user", user)) {
- *       userRepository.create(user)
- *       sendWelcomeEmail(user)
+ *   fun updateOrder(order: Order) {
+ *     withLoggingContext(field("order", order)) {
+ *       orderRepository.update(order)
+ *       updateStatistics(order)
  *     }
  *   }
  *
- *   // In this hypothetical, we don't want sendWelcomeEmail to block registerUser, so we use an
+ *   // In this scenario, we don't want updateStatistics to block updateOrder, so we use an
  *   // ExecutorService to spawn a thread.
  *   //
  *   // But we want to log if it fails, and include the logging context from the parent thread.
  *   // This is where inheritLoggingContext comes in.
- *   private fun sendWelcomeEmail(user: User) {
+ *   private fun updateStatistics(order: Order) {
  *     executor.execute {
  *       try {
- *         emailService.sendEmail(to = user.email, content = makeWelcomeEmailContent(user))
+ *         statisticsService.orderUpdated(order)
  *       } catch (e: Exception) {
- *         // This log will get the "user" field from the parent logging context
- *         log.error {
- *           cause = e
- *           "Failed to send welcome email to user"
- *         }
+ *         // This log will get the "order" field from the parent logging context
+ *         log.error(e) { "Failed to update order statistics" }
  *       }
  *     }
  *   }
  * }
  * ```
  */
-fun ExecutorService.inheritLoggingContext(): ExecutorService {
+public fun ExecutorService.inheritLoggingContext(): ExecutorService {
   return ExecutorServiceWithInheritedLoggingContext(this)
 }
 
@@ -259,30 +265,6 @@ fun ExecutorService.inheritLoggingContext(): ExecutorService {
  */
 @PublishedApi
 internal object LoggingContext {
-  /**
-   * SLF4J's MDC only supports String values. This works fine for our [StringLogField] - but we also
-   * want the ability to include JSON-serialized objects in our logging context. This is useful when
-   * for example processing an event, and you want that event to be included on all logs in the
-   * scope of processing it. If we were to just include it as a string, the JSON would be escaped,
-   * which prevents log analysis platforms from parsing fields from the event and letting us query
-   * on them. What we want is for the [JsonLogField] to be included as actual JSON on the log
-   * output, unescaped, to get the benefits of structured logging.
-   *
-   * To achieve this, we add the raw JSON string from [JsonLogField] to the MDC, but with this
-   * suffix added to the key. Then, users can configure our [LoggingContextJsonFieldWriter] to strip
-   * this suffix from the key and write the field value as raw JSON in the log output. This only
-   * works when using Logback with `logstash-logback-encoder`, but that's what this library is
-   * primarily designed for anyway.
-   *
-   * We add a suffix to the field key instead of the field value, since the field value may be
-   * external input, which would open us up to malicious actors breaking our logs by passing invalid
-   * JSON strings with the appropriate prefix/suffix.
-   *
-   * This specific suffix was chosen to reduce the chance of clashing with other keys - most MDC
-   * keys will not include spaces/parentheses, but these are perfectly valid JSON keys.
-   */
-  internal const val JSON_FIELD_KEY_SUFFIX = " (json)"
-
   @PublishedApi
   internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields {
     var overwrittenFields = OverwrittenContextFields(null)
@@ -307,10 +289,11 @@ internal object LoggingContext {
           overwrittenFields = overwrittenFields.set(index, field.key, existingValue, fields.size)
           /**
            * If we get a [JsonLogField] whose key matches a non-JSON field in the context, then we
-           * want to overwrite "key" with "key (json)" (adding [JSON_FIELD_KEY_SUFFIX] to identify
-           * the JSON value). But since "key (json)" does not match "key", calling `MDC.put` below
-           * will not overwrite the previous field, so we have to manually remove it here. The
-           * previous field will then be restored by [removeFields] after the context exits.
+           * want to overwrite "key" with "key (json)" (adding [LOGGING_CONTEXT_JSON_KEY_SUFFIX] to
+           * identify the JSON value). But since "key (json)" does not match "key", calling
+           * `MDC.put` below will not overwrite the previous field, so we have to manually remove it
+           * here. The previous field will then be restored by [removeFields] after the context
+           * exits.
            */
           if (field.key != field.keyForLoggingContext) {
             MDC.remove(field.key)
@@ -387,13 +370,6 @@ internal object LoggingContext {
   internal fun hasKey(key: String): Boolean {
     val existingValue: String? = MDC.get(key)
     return existingValue != null
-  }
-
-  /** Assumes that the given key has already been checked to end with [JSON_FIELD_KEY_SUFFIX]. */
-  internal fun removeJsonFieldSuffixFromKey(key: String): String {
-    // We do manual substring here instead of using removeSuffix, since removeSuffix calls endsWith,
-    // so we would call it twice
-    return key.substring(0, key.length - JSON_FIELD_KEY_SUFFIX.length)
   }
 
   internal fun getFieldMap(): Map<String, String?>? {
@@ -502,8 +478,8 @@ internal value class OverwrittenContextFields(private val fields: Array<String?>
 }
 
 internal fun createLogFieldFromContext(key: String, value: String): LogField {
-  return if (USING_LOGGING_CONTEXT_JSON_FIELD_WRITER &&
-      key.endsWith(LoggingContext.JSON_FIELD_KEY_SUFFIX)) {
+  return if (ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS &&
+      key.endsWith(LOGGING_CONTEXT_JSON_KEY_SUFFIX)) {
     JsonLogFieldFromContext(key, value)
   } else {
     StringLogFieldFromContext(key, value)
@@ -511,22 +487,12 @@ internal fun createLogFieldFromContext(key: String, value: String): LogField {
 }
 
 @PublishedApi
-internal class StringLogFieldFromContext(
-    override val key: String,
-    override val value: String,
-) : LogField() {
-  override val keyForLoggingContext: String
-    get() = key
-
-  override fun getValueForLog(): String? {
-    // We only want to include fields from the logging context if it's not already in the context
-    // (in which case the logger implementation will add the fields from SLF4J's MDC)
-    return if (LoggingContext.hasKey(key)) {
-      null
-    } else {
-      value
-    }
-  }
+internal class StringLogFieldFromContext(key: String, value: String) : StringLogField(key, value) {
+  /**
+   * We only want to include fields from the logging context if it's not already in the context (in
+   * which case the logger implementation will add the fields from SLF4J's MDC).
+   */
+  override fun includeInLog(): Boolean = !LoggingContext.hasKey(key)
 }
 
 @PublishedApi
@@ -536,20 +502,76 @@ internal class JsonLogFieldFromContext(
      * [createLogFieldFromContext]). So we set [keyForLoggingContext] to the key with the suffix,
      * and remove the suffix for [key] below.
      */
-    override val keyForLoggingContext: String,
-    override val value: String,
-) : LogField() {
-  override val key: String = LoggingContext.removeJsonFieldSuffixFromKey(keyForLoggingContext)
+    keyWithJsonSuffix: String,
+    value: String,
+) :
+    JsonLogField(
+        key = keyWithJsonSuffix.removeSuffix(LOGGING_CONTEXT_JSON_KEY_SUFFIX),
+        value = value,
+        keyForLoggingContext = keyWithJsonSuffix,
+    ) {
+  /**
+   * We only want to include fields from the logging context if it's not already in the context (in
+   * which case the logger implementation will add the fields from SLF4J's MDC).
+   */
+  override fun includeInLog(): Boolean = !LoggingContext.hasKey(key)
+}
 
-  override fun getValueForLog(): RawJson? {
-    // We only want to include fields from the logging context if it's not already in the context
-    // (in which case the logger implementation will add the fields from SLF4J's MDC)
-    return if (LoggingContext.hasKey(key)) {
-      null
-    } else {
-      RawJson(value)
-    }
-  }
+/**
+ * SLF4J's MDC only supports String values. This works fine for our [StringLogField] - but we also
+ * want the ability to include JSON-serialized objects in our logging context. This is useful when
+ * for example processing an event, and you want that event to be included on all logs in the scope
+ * of processing it. If we were to just include it as a string, the JSON would be escaped, which
+ * prevents log analysis platforms from parsing fields from the event and letting us query on them.
+ * What we want is for the [JsonLogField] to be included as actual JSON on the log output,
+ * unescaped, to get the benefits of structured logging.
+ *
+ * To achieve this, we add the raw JSON string from [JsonLogField] to the MDC, but with this suffix
+ * added to the key. Then, users can configure our [LoggingContextJsonFieldWriter] to strip this
+ * suffix from the key and write the field value as raw JSON in the log output. This only works when
+ * using Logback with `logstash-logback-encoder`, but that's what this library is primarily designed
+ * for anyway.
+ *
+ * We add a suffix to the field key instead of the field value, since the field value may be
+ * external input, which would open us up to malicious actors breaking our logs by passing invalid
+ * JSON strings with the appropriate prefix/suffix.
+ *
+ * This specific suffix was chosen to reduce the chance of clashing with other keys - MDC keys
+ * typically don't have spaces/parentheses.
+ */
+internal const val LOGGING_CONTEXT_JSON_KEY_SUFFIX = " (json)"
+
+/**
+ * We only want to add [LOGGING_CONTEXT_JSON_KEY_SUFFIX] to context field keys if the user has
+ * configured [LoggingContextJsonFieldWriter] with `logstash-logback-encoder`. If this is not the
+ * case, we don't want to add the key suffix, as that will show up in the log output.
+ *
+ * So to check this, we use this global boolean (volatile for thread-safety), defaulting to false.
+ * If `LoggingContextJsonFieldWriter` is configured, its constructor will run when Logback is
+ * initialized, and set this to true. Then we can check this value in [JsonLogField], to decide
+ * whether or not to add the JSON key suffix.
+ *
+ * One obstacle with this approach is that we need Logback to be loaded before checking this field.
+ * The user may construct a [JsonLogField] before loading Logback, in which case
+ * `LoggingContextJsonFieldWriter`'s constructor will not have run yet, and we will omit the key
+ * suffix when it should have been added. So to ensure that Logback is loaded before checking this
+ * field, we call [ensureLoggerImplementationIsLoaded] from an `init` block on
+ * [JsonLogField.Companion], which will run when the class is loaded. We test that this works in the
+ * `LogbackLoggerTest` under `integration-tests/logback`.
+ */
+@Volatile internal var ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS = false
+
+/**
+ * See [ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS].
+ *
+ * This function catches all throwables (this is important, since we call this from static
+ * initializers).
+ */
+internal fun ensureLoggerImplementationIsLoaded() {
+  try {
+    // This will initialize the SLF4J logger implementation, if not already initialized
+    Slf4jLoggerFactory.getILoggerFactory()
+  } catch (_: Throwable) {}
 }
 
 /**

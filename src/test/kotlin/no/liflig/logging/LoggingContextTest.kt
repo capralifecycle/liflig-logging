@@ -27,7 +27,7 @@ import org.junit.jupiter.params.provider.MethodSource
 private val log = getLogger {}
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class LoggingContextTest {
+internal class LoggingContextTest {
   @Test
   fun `field from logging context is included in log`() {
     val output = captureLogOutput {
@@ -62,7 +62,7 @@ class LoggingContextTest {
   fun `rawJsonField works with logging context`() {
     val output = captureLogOutput {
       withLoggingContext(
-          rawJsonField("user", """{"id":1,"name":"John Doe"}"""),
+          rawJsonField("event", """{"id":1001,"type":"ORDER_UPDATED"}"""),
       ) {
         log.info { "Test" }
       }
@@ -70,11 +70,11 @@ class LoggingContextTest {
 
     output.contextFields shouldContainExactly
         mapOf(
-            "user" to
+            "event" to
                 JsonObject(
                     mapOf(
-                        "id" to JsonPrimitive(1),
-                        "name" to JsonPrimitive("John Doe"),
+                        "id" to JsonPrimitive(1001),
+                        "type" to JsonPrimitive("ORDER_UPDATED"),
                     ),
                 ),
         )
@@ -115,18 +115,18 @@ class LoggingContextTest {
 
   @Test
   fun `nested logging context restores previous context fields on exit`() {
-    val user1 = User(id = 1, name = "John Doe")
-    val user2 = User(id = 2, name = "Jane Doe")
+    val event1 = Event(id = 1001, type = EventType.ORDER_PLACED)
+    val event2 = Event(id = 1002, type = EventType.ORDER_UPDATED)
 
     withLoggingContext(
-        field("user", user1),
+        field("event", event1),
         field("stringField", "parentValue"),
         field("parentOnlyField", "value1"),
         field("fieldThatIsStringInParentButJsonInChild", "stringValue"),
     ) {
       val parentContext =
           mapOf(
-              "user${LoggingContext.JSON_FIELD_KEY_SUFFIX}" to """{"id":1,"name":"John Doe"}""",
+              "event${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to """{"id":1001,"type":"ORDER_PLACED"}""",
               "stringField" to "parentValue",
               "parentOnlyField" to "value1",
               "fieldThatIsStringInParentButJsonInChild" to "stringValue",
@@ -134,18 +134,19 @@ class LoggingContextTest {
       LoggingContext shouldContainExactly parentContext
 
       withLoggingContext(
-          field("user", user2),
+          field("event", event2),
           field("stringField", "childValue"),
           field("childOnlyField", "value2"),
           rawJsonField("fieldThatIsStringInParentButJsonInChild", """{"test":true}"""),
       ) {
         LoggingContext shouldContainExactly
             mapOf(
-                "user${LoggingContext.JSON_FIELD_KEY_SUFFIX}" to """{"id":2,"name":"Jane Doe"}""",
+                "event${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to
+                    """{"id":1002,"type":"ORDER_UPDATED"}""",
                 "stringField" to "childValue",
                 "parentOnlyField" to "value1",
                 "childOnlyField" to "value2",
-                "fieldThatIsStringInParentButJsonInChild${LoggingContext.JSON_FIELD_KEY_SUFFIX}" to
+                "fieldThatIsStringInParentButJsonInChild${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to
                     """{"test":true}""",
             )
       }
@@ -155,9 +156,9 @@ class LoggingContextTest {
   }
 
   @Test
-  fun `USING_LOGGING_CONTEXT_JSON_FIELD_WRITER has expected value`() {
+  fun `ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS has expected value`() {
     // Since we use LoggingContextJsonFieldWriter in tests, we expect this to be set
-    USING_LOGGING_CONTEXT_JSON_FIELD_WRITER.shouldBeTrue()
+    ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS.shouldBeTrue()
   }
 
   @Test
@@ -260,7 +261,7 @@ class LoggingContextTest {
 
   @Test
   fun `getLoggingContext allows passing logging context between threads`() {
-    val user = User(id = 1, name = "John Doe")
+    val event = Event(id = 1001, type = EventType.ORDER_PLACED)
 
     val lock = ReentrantLock()
     // Used to wait for the child thread to complete its log
@@ -270,7 +271,7 @@ class LoggingContextTest {
       // Aquire a lock around the outer withLoggingContext in the parent thread, to test that
       // the logging context works in the child thread even when the outer context has exited
       lock.withLock {
-        withLoggingContext(field("user", user)) {
+        withLoggingContext(field("event", event)) {
           // Get the parent logging context (the one we just entered)
           val loggingContext = getLoggingContext()
 
@@ -291,11 +292,11 @@ class LoggingContextTest {
 
     output.contextFields shouldContainExactly
         mapOf(
-            "user" to
+            "event" to
                 JsonObject(
                     mapOf(
-                        "id" to JsonPrimitive(1),
-                        "name" to JsonPrimitive("John Doe"),
+                        "id" to JsonPrimitive(1001),
+                        "type" to JsonPrimitive("ORDER_PLACED"),
                     ),
                 ),
         )

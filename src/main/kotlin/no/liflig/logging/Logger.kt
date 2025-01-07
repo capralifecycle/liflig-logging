@@ -24,7 +24,7 @@ import org.slf4j.event.Level as Slf4jLevel
  * }
  * ```
  */
-fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
+public fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
   return getLogger(name = getClassNameFromFunction(emptyLambdaToGetName))
 }
 
@@ -37,7 +37,7 @@ fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
  * To set the name automatically from the containing class/file, you can use the [getLogger]
  * overload with an empty lambda.
  */
-fun getLogger(name: String): Logger {
+public fun getLogger(name: String): Logger {
   val underlyingLogger = Slf4jLoggerFactory.getLogger(name)
   return Logger(underlyingLogger)
 }
@@ -74,25 +74,28 @@ fun getLogger(name: String): Logger {
  * ```
  */
 @JvmInline // Inline value class, to avoid redundant indirection when we just wrap an SLF4J logger
-value class Logger
+public value class Logger
 internal constructor(
     @PublishedApi internal val underlyingLogger: Slf4jLogger,
 ) {
   /**
-   * Logs the message returned by the given function at the INFO log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at the INFO log level, if enabled.
    *
-   * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.field].
+   * If the log was caused by an exception, you can attach it to the log with the optional [cause]
+   * parameter before the lambda.
+   *
+   * In the scope of the [buildLog] lambda, you can call [LogBuilder.field] to add structured
+   * key-value data to the log.
    *
    * ### Example
    *
    * ```
    * private val log = getLogger {}
    *
-   * fun example(user: User) {
+   * fun example(event: Event) {
    *   log.info {
-   *     field("user", user)
-   *     "Registered new user"
+   *     field("event", event)
+   *     "Processing event"
    *   }
    * }
    * ```
@@ -104,32 +107,41 @@ internal constructor(
    * number. This happens because [Logger]'s methods are `inline`, to avoid allocating a function
    * object for [buildLog]. Inline functions give incorrect line numbers, but we prioritize the
    * performance gain in this case. File, class and method names will still be correct.
+   *
+   * @param cause Optional cause exception. Pass this in parentheses before the lambda.
+   * @param buildLog Returns the message to log. Will only be called if the log level is enabled, so
+   *   you don't pay for string concatenation if it's not logged.
+   *
+   *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
+   *   to add structured key-value data to the log.
    */
-  inline fun info(buildLog: LogBuilder.() -> String) {
+  public inline fun info(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
     if (underlyingLogger.isInfoEnabled) {
-      log(LogLevel.INFO, buildLog)
+      log(LogLevel.INFO, cause, buildLog)
     }
   }
 
   /**
-   * Logs the message returned by the given function at the WARN log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at the WARN log level, if enabled.
    *
-   * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.field].
+   * If the log was caused by an exception, you can attach it to the log with the optional [cause]
+   * parameter before the lambda.
+   *
+   * In the scope of the [buildLog] lambda, you can call [LogBuilder.field] to add structured
+   * key-value data to the log.
    *
    * ### Example
    *
    * ```
    * private val log = getLogger {}
    *
-   * fun example(user: User) {
+   * fun example(event: Event) {
    *   try {
-   *     sendWelcomeEmail(user)
+   *     publishEvent(event)
    *   } catch (e: Exception) {
-   *     log.warn {
-   *       cause = e
-   *       field("user", user)
-   *       "Failed to send welcome email to user"
+   *     log.warn(e) {
+   *       field("event", event)
+   *       "Failed to publish event, retrying"
    *     }
    *   }
    * }
@@ -142,32 +154,41 @@ internal constructor(
    * number. This happens because [Logger]'s methods are `inline`, to avoid allocating a function
    * object for [buildLog]. Inline functions give incorrect line numbers, but we prioritize the
    * performance gain in this case. File, class and method names will still be correct.
+   *
+   * @param cause Optional cause exception. Pass this in parentheses before the lambda.
+   * @param buildLog Returns the message to log. Will only be called if the log level is enabled, so
+   *   you don't pay for string concatenation if it's not logged.
+   *
+   *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
+   *   to add structured key-value data to the log.
    */
-  inline fun warn(buildLog: LogBuilder.() -> String) {
+  public inline fun warn(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
     if (underlyingLogger.isWarnEnabled) {
-      log(LogLevel.WARN, buildLog)
+      log(LogLevel.WARN, cause, buildLog)
     }
   }
 
   /**
-   * Logs the message returned by the given function at the ERROR log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at the ERROR log level, if enabled.
    *
-   * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.field].
+   * If the log was caused by an exception, you can attach it to the log with the optional [cause]
+   * parameter before the lambda.
+   *
+   * In the scope of the [buildLog] lambda, you can call [LogBuilder.field] to add structured
+   * key-value data to the log.
    *
    * ### Example
    *
    * ```
    * private val log = getLogger {}
    *
-   * fun example(user: User) {
+   * fun example(event: Event) {
    *   try {
-   *     storeUser(user)
+   *     processEvent(event)
    *   } catch (e: Exception) {
-   *     log.error {
-   *       cause = e
-   *       field("user", user)
-   *       "Failed to store user in database"
+   *     log.error(e) {
+   *       field("event", event)
+   *       "Failed to process event"
    *     }
    *   }
    * }
@@ -180,28 +201,38 @@ internal constructor(
    * number. This happens because [Logger]'s methods are `inline`, to avoid allocating a function
    * object for [buildLog]. Inline functions give incorrect line numbers, but we prioritize the
    * performance gain in this case. File, class and method names will still be correct.
+   *
+   * @param cause Optional cause exception. Pass this in parentheses before the lambda.
+   * @param buildLog Returns the message to log. Will only be called if the log level is enabled, so
+   *   you don't pay for string concatenation if it's not logged.
+   *
+   *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
+   *   to add structured key-value data to the log.
    */
-  inline fun error(buildLog: LogBuilder.() -> String) {
+  public inline fun error(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
     if (underlyingLogger.isErrorEnabled) {
-      log(LogLevel.ERROR, buildLog)
+      log(LogLevel.ERROR, cause, buildLog)
     }
   }
 
   /**
-   * Logs the message returned by the given function at the DEBUG log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at the DEBUG log level, if enabled.
    *
-   * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.field].
+   * If the log was caused by an exception, you can attach it to the log with the optional [cause]
+   * parameter before the lambda.
+   *
+   * In the scope of the [buildLog] lambda, you can call [LogBuilder.field] to add structured
+   * key-value data to the log.
    *
    * ### Example
    *
    * ```
    * private val log = getLogger {}
    *
-   * fun example(user: User) {
+   * fun example(event: Event) {
    *   log.debug {
-   *     field("user", user)
-   *     "Received new sign-up request"
+   *     field("event", event)
+   *     "Processing event"
    *   }
    * }
    * ```
@@ -213,28 +244,38 @@ internal constructor(
    * number. This happens because [Logger]'s methods are `inline`, to avoid allocating a function
    * object for [buildLog]. Inline functions give incorrect line numbers, but we prioritize the
    * performance gain in this case. File, class and method names will still be correct.
+   *
+   * @param cause Optional cause exception. Pass this in parentheses before the lambda.
+   * @param buildLog Returns the message to log. Will only be called if the log level is enabled, so
+   *   you don't pay for string concatenation if it's not logged.
+   *
+   *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
+   *   to add structured key-value data to the log.
    */
-  inline fun debug(buildLog: LogBuilder.() -> String) {
+  public inline fun debug(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
     if (underlyingLogger.isDebugEnabled) {
-      log(LogLevel.DEBUG, buildLog)
+      log(LogLevel.DEBUG, cause, buildLog)
     }
   }
 
   /**
-   * Logs the message returned by the given function at the TRACE log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at the TRACE log level, if enabled.
    *
-   * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.field].
+   * If the log was caused by an exception, you can attach it to the log with the optional [cause]
+   * parameter before the lambda.
+   *
+   * In the scope of the [buildLog] lambda, you can call [LogBuilder.field] to add structured
+   * key-value data to the log.
    *
    * ### Example
    *
    * ```
    * private val log = getLogger {}
    *
-   * fun example(user: User) {
+   * fun example(event: Event) {
    *   log.trace {
-   *     field("user", user)
-   *     "Started processing user request"
+   *     field("event", event)
+   *     "Event processing started"
    *   }
    * }
    * ```
@@ -246,35 +287,44 @@ internal constructor(
    * number. This happens because [Logger]'s methods are `inline`, to avoid allocating a function
    * object for [buildLog]. Inline functions give incorrect line numbers, but we prioritize the
    * performance gain in this case. File, class and method names will still be correct.
+   *
+   * @param cause Optional cause exception. Pass this in parentheses before the lambda.
+   * @param buildLog Returns the message to log. Will only be called if the log level is enabled, so
+   *   you don't pay for string concatenation if it's not logged.
+   *
+   *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
+   *   to add structured key-value data to the log.
    */
-  inline fun trace(buildLog: LogBuilder.() -> String) {
+  public inline fun trace(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
     if (underlyingLogger.isTraceEnabled) {
-      log(LogLevel.TRACE, buildLog)
+      log(LogLevel.TRACE, cause, buildLog)
     }
   }
 
   /**
-   * Logs the message returned by the given function at the given [LogLevel], if it is enabled. This
-   * is useful when setting the log level dynamically, instead of calling
+   * Calls the given lambda to build a log message, and logs it at the given [LogLevel], if enabled.
+   * This is useful when setting the log level dynamically, instead of calling
    * [info]/[warn]/[error]/[debug]/[trace] conditionally.
    *
-   * You can add a cause exception by setting [cause][LogBuilder.cause] on the [LogBuilder] function
-   * receiver, and add structured key-value data with [LogBuilder.field].
+   * If the log was caused by an exception, you can attach it to the log with the optional [cause]
+   * parameter before the lambda.
+   *
+   * In the scope of the [buildLog] lambda, you can call [LogBuilder.field] to add structured
+   * key-value data to the log.
    *
    * ### Example
    *
    * ```
    * private val log = getLogger {}
    *
-   * fun example(user: User) {
+   * fun example(event: Event) {
    *   try {
-   *     sendWelcomeEmail(user)
+   *     processEvent(event)
    *   } catch (e: Exception) {
    *     val logLevel = if (e is IOException) LogLevel.ERROR else LogLevel.WARN
-   *     log.at(logLevel) {
-   *       cause = e
-   *       field("user", user)
-   *       "Failed to send welcome email to user"
+   *     log.at(logLevel, cause = e) {
+   *       field("event", event)
+   *       "Failed to process event"
    *     }
    *   }
    * }
@@ -287,23 +337,39 @@ internal constructor(
    * number. This happens because [Logger]'s methods are `inline`, to avoid allocating a function
    * object for [buildLog]. Inline functions give incorrect line numbers, but we prioritize the
    * performance gain in this case. File, class and method names will still be correct.
+   *
+   * @param level Severity of the log.
+   * @param cause Optional cause exception. Pass this in parentheses before the lambda.
+   * @param buildLog Returns the message to log. Will only be called if the log level is enabled, so
+   *   you don't pay for string concatenation if it's not logged.
+   *
+   *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
+   *   to add structured key-value data to the log.
    */
-  inline fun at(level: LogLevel, buildLog: LogBuilder.() -> String) {
+  public inline fun at(
+      level: LogLevel,
+      cause: Throwable? = null,
+      buildLog: LogBuilder.() -> String
+  ) {
     if (underlyingLogger.isEnabledForLevel(level.slf4jLevel)) {
-      log(level, buildLog)
+      log(level, cause, buildLog)
     }
   }
 
   @PublishedApi
-  internal inline fun log(level: LogLevel, buildLog: LogBuilder.() -> String) {
-    val builder = LogBuilder(LogEvent.create(level, underlyingLogger))
+  internal inline fun log(level: LogLevel, cause: Throwable?, buildLog: LogBuilder.() -> String) {
+    val builder = LogBuilder(createLogEvent(level, cause, underlyingLogger))
     val message = builder.buildLog()
-    builder.finalize(message)
-    builder.logEvent.log(underlyingLogger)
+    if (cause != null) {
+      // Call this after buildLog(), so cause exception fields don't overwrite LogBuilder fields
+      builder.addFieldsFromCauseException(cause)
+    }
+
+    builder.logEvent.log(message, underlyingLogger)
   }
 }
 
-enum class LogLevel(
+public enum class LogLevel(
     @PublishedApi internal val slf4jLevel: Slf4jLevel,
 ) {
   INFO(Slf4jLevel.INFO),

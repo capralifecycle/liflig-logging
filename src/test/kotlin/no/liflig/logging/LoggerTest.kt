@@ -45,8 +45,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `info log`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.INFO) {
-      test.logger.info {
-        cause = test.cause
+      test.logger.info(test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -58,8 +57,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `warn log`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.WARN) {
-      test.logger.warn {
-        cause = test.cause
+      test.logger.warn(test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -71,8 +69,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `error log`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.ERROR) {
-      test.logger.error {
-        cause = test.cause
+      test.logger.error(test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -84,8 +81,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `debug log`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.DEBUG) {
-      test.logger.debug {
-        cause = test.cause
+      test.logger.debug(test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -97,8 +93,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `trace log`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.TRACE) {
-      test.logger.trace {
-        cause = test.cause
+      test.logger.trace(test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -110,8 +105,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `info log using 'at' method`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.INFO) {
-      test.logger.at(LogLevel.INFO) {
-        cause = test.cause
+      test.logger.at(LogLevel.INFO, test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -123,8 +117,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `warn log using 'at' method`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.WARN) {
-      test.logger.at(LogLevel.WARN) {
-        cause = test.cause
+      test.logger.at(LogLevel.WARN, test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -136,8 +129,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `error log using 'at' method`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.ERROR) {
-      test.logger.at(LogLevel.ERROR) {
-        cause = test.cause
+      test.logger.at(LogLevel.ERROR, test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -149,8 +141,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `debug log using 'at' method`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.DEBUG) {
-      test.logger.at(LogLevel.DEBUG) {
-        cause = test.cause
+      test.logger.at(LogLevel.DEBUG, test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -162,8 +153,7 @@ internal class LoggerTest {
   @MethodSource("getLoggerTestCases")
   fun `trace log using 'at' method`(test: LoggerTestCase) {
     test.verifyLogOutput(LogLevel.TRACE) {
-      test.logger.at(LogLevel.TRACE) {
-        cause = test.cause
+      test.logger.at(LogLevel.TRACE, test.cause) {
         field(test.fieldKey1, test.fieldValue1)
         field(test.fieldKey2, test.fieldValue2)
         test.message
@@ -197,19 +187,19 @@ internal class LoggerTest {
       // Incrementally disable log levels, and verify that the log builder does not get called for
       // disabled levels
       logbackLogger.level = LogbackLevel.DEBUG
-      log.trace(failingLogBuilder)
+      log.trace(null, failingLogBuilder)
 
       logbackLogger.level = LogbackLevel.INFO
-      log.debug(failingLogBuilder)
+      log.debug(null, failingLogBuilder)
 
       logbackLogger.level = LogbackLevel.WARN
-      log.info(failingLogBuilder)
+      log.info(null, failingLogBuilder)
 
       logbackLogger.level = LogbackLevel.ERROR
-      log.warn(failingLogBuilder)
+      log.warn(null, failingLogBuilder)
 
       logbackLogger.level = LogbackLevel.OFF
-      log.error(failingLogBuilder)
+      log.error(null, failingLogBuilder)
     } finally {
       // Reset logger level, so this test doesn't affect other tests
       logbackLogger.level = LogbackLevel.TRACE
@@ -265,7 +255,7 @@ internal class LoggerTest {
 
   @Test
   fun `Logback is loaded in tests`() {
-    LogEvent.LOGBACK_IS_ON_CLASSPATH shouldBe true
+    LOGBACK_IS_ON_CLASSPATH shouldBe true
   }
 
   @Test
@@ -291,34 +281,6 @@ internal class LoggerTest {
     }
   }
 
-  /** See comment in [LogbackLogEvent.setCause]. */
-  @Test
-  fun `cause exception can be set to null`() {
-    log.error {
-      cause = null
-      "Test"
-    }
-  }
-
-  /** See comment in [LogBuilder.cause] setter and [LogbackLogEvent.setCause]. */
-  @Test
-  fun `setting cause multiple times only keeps the first non-null exception`() {
-    val exception1 = Exception("Exception 1")
-    val exception2 = Exception("Exception 2")
-
-    log.error {
-      cause = null
-      cause = exception1
-      cause = exception2
-      "Test"
-    }
-
-    logAppender.list shouldHaveSize 1
-    val logEvent = logAppender.list.first()
-    val cause = logEvent.throwableProxy.shouldBeInstanceOf<ThrowableProxy>().throwable
-    cause shouldBe exception1
-  }
-
   data class LoggerTestCase(
       val name: String,
       val logger: Logger,
@@ -327,13 +289,13 @@ internal class LoggerTest {
       val fieldKey1: String = "key1",
       val fieldValue1: String = "value1",
       val fieldKey2: String = "key2",
-      val fieldValue2: User = User(id = 1, name = "John Doe"),
+      val fieldValue2: Event = Event(id = 1001, type = EventType.ORDER_PLACED),
       val cause: Exception = Exception("Something went wrong"),
       val expectedMessage: String = message,
       val expectedFields: List<KeyValuePair>? =
           listOf(
               KeyValuePair(fieldKey1, fieldValue1),
-              KeyValuePair(fieldKey2, RawJson("""{"id":1,"name":"John Doe"}""")),
+              KeyValuePair(fieldKey2, RawJson("""{"id":1001,"type":"ORDER_PLACED"}""")),
           ),
       val shouldHaveCorrectFileLocation: Boolean = true,
   ) {
@@ -350,13 +312,15 @@ internal class LoggerTest {
           LoggerTestCase(
               "Location-aware SLF4J logger",
               logger = Logger(LocationAwareSlf4jLogger(logbackLogger)),
-              expectedMessage = """Test message [key1=value1, key2={"id":1,"name":"John Doe"}]""",
+              expectedMessage =
+                  """Test message [key1=value1, key2={"id":1001,"type":"ORDER_PLACED"}]""",
               expectedFields = null,
           ),
           LoggerTestCase(
               "Plain SLF4J logger",
               logger = Logger(PlainSlf4jLogger(logbackLogger)),
-              expectedMessage = """Test message [key1=value1, key2={"id":1,"name":"John Doe"}]""",
+              expectedMessage =
+                  """Test message [key1=value1, key2={"id":1001,"type":"ORDER_PLACED"}]""",
               expectedFields = null,
               // The plain SLF4J logger does not implement location-aware logging, so we don't
               // expect it to have correct file location

@@ -5,59 +5,60 @@ package no.liflig.logging
  * `cause` exception to one of the methods on [Logger], it will check if the given exception is an
  * instance of this class, and if it is, these fields will be added to the log.
  *
- * This is useful when you are throwing an exception from somewhere down in the stack, but do
+ * The exception also includes any log fields from [withLoggingContext], from the scope in which the
+ * exception is constructed. This way, we don't lose any logging context if the exception escapes
+ * the context it was thrown from. If you don't want this behavior, you can create a custom
+ * exception and implement the [WithLogFields] interface.
+ *
+ * This class is useful when you are throwing an exception from somewhere down in the stack, but do
  * logging further up the stack, and you have structured data that you want to attach to the
  * exception log. In this case, one may typically resort to string concatenation, but this class
  * allows you to have the benefits of structured logging for exceptions as well.
  *
- * The exception also includes any log fields from [withLoggingContext], from the scope in which the
- * exception is constructed. If you don't want this behavior, you can create a custom exception and
- * implement the [WithLogFields] interface.
- *
  * ### Example
  *
  * ```
- * fun storeUser(user: User) {
- *   withLoggingContext(field("user", user)) {
- *     if (usernameTaken(user.name)) {
- *       throw ExceptionWithLogFields(
- *           "Invalid user data",
- *           logFields = listOf(field("reason", "Username taken")),
- *       )
- *     }
- *   }
- * }
+ * import no.liflig.logging.ExceptionWithLogFields
+ * import no.liflig.logging.field
+ * import no.liflig.logging.getLogger
  *
  * private val log = getLogger {}
  *
- * fun example(user: User) {
+ * fun example(event: OrderUpdateEvent) {
  *   try {
- *     storeUser(user)
+ *     processOrderUpdate(event)
  *   } catch (e: Exception) {
- *     log.error {
- *       cause = e
- *       "Failed to store user"
+ *     log.error(e) { "Failed to process order update event" }
+ *   }
+ * }
+ *
+ * fun processOrderUpdate(event: OrderUpdateEvent) {
+ *   withLoggingContext(field("event", event)) {
+ *     val order = getOrder(event.orderId)
+ *
+ *     if (!order.canBeUpdated()) {
+ *       throw ExceptionWithLogFields(
+ *           "Received update event for finalized order",
+ *           logFields = listOf(field("order", order)),
+ *       )
  *     }
  *   }
  * }
  * ```
  *
  * The `log.error` would then give the following log output (using `logstash-logback-encoder`), with
- * both the `reason` field from the exception and the `user` field from the logging context:
+ * both the `order` field from the exception and the `event` field from the logging context:
  * ```
  * {
- *   "message": "Failed to store user",
- *   "reason": "Username taken",
- *   "user": {
- *     "id": 1,
- *     "name": "John Doe"
- *   },
+ *   "message": "Failed to process order update event",
+ *   "order": { ... },
+ *   "event": { ... },
  *   "stack_trace": "...",
  *   // ...timestamp etc.
  * }
  * ```
  */
-open class ExceptionWithLogFields(
+public open class ExceptionWithLogFields(
     override val message: String?,
     logFields: List<LogField> = emptyList(),
     override val cause: Throwable? = null,
@@ -107,46 +108,42 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  * import no.liflig.logging.field
  * import no.liflig.logging.getLogger
  *
- * class InvalidUserData(user: User) : RuntimeException(), WithLogFields {
- *   override val message = "Invalid user data"
- *   override val logFields = listOf(field("user", user))
- * }
- *
- * fun storeUser(user: User) {
- *   if (!user.isValid()) {
- *     throw InvalidUserData(user)
- *   }
- * }
- *
  * private val log = getLogger {}
  *
- * fun example(user: User) {
+ * fun example(order: Order) {
  *   try {
- *     storeUser(user)
+ *     updateOrder(order)
  *   } catch (e: Exception) {
- *     log.error {
- *       cause = e
- *       "Failed to store user"
- *     }
+ *     log.error(e) { "Failed to update order" }
  *   }
+ * }
+ *
+ * fun updateOrder(order: Order) {
+ *   if (!order.canBeUpdated()) {
+ *     throw InvalidOrderState("Cannot update finalized order", order)
+ *   }
+ * }
+ *
+ * class InvalidOrderState(
+ *     override val message: String,
+ *     order: Order,
+ * ) : RuntimeException(), WithLogFields {
+ *   override val logFields = listOf(field("order", order))
  * }
  * ```
  *
  * The `log.error` would then give the following log output (using `logstash-logback-encoder`), with
- * the `user` log field from `InvalidUserData` attached:
+ * the `order` log field from `InvalidOrderState` attached:
  * ```
  * {
- *   "message": "Failed to store user",
- *   "user": {
- *     "id": 1,
- *     "name": "John Doe"
- *   },
+ *   "message": "Failed to update order",
+ *   "order": { ... },
  *   "stack_trace": "...",
  *   // ...timestamp etc.
  * }
  * ```
  */
-interface WithLogFields {
+public interface WithLogFields {
   /** Will be attached to the log when passed through `cause` to one of [Logger]'s methods. */
-  val logFields: List<LogField>
+  public val logFields: List<LogField>
 }

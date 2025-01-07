@@ -3,7 +3,10 @@ package no.liflig.logging
 import ch.qos.logback.classic.Level as LogbackLevel
 import ch.qos.logback.classic.Logger as LogbackLogger
 import ch.qos.logback.classic.spi.LoggingEvent as BaseLogbackEvent
-import ch.qos.logback.classic.spi.ThrowableProxy
+import com.fasterxml.jackson.core.JsonGenerator
+import com.fasterxml.jackson.databind.JsonSerializable
+import com.fasterxml.jackson.databind.SerializerProvider
+import com.fasterxml.jackson.databind.jsontype.TypeSerializer
 import org.slf4j.Logger as Slf4jLogger
 import org.slf4j.event.DefaultLoggingEvent as BaseSlf4jEvent
 import org.slf4j.event.KeyValuePair
@@ -32,83 +35,59 @@ import org.slf4j.spi.LoggingEventAware
  */
 @PublishedApi
 internal interface LogEvent {
-  companion object {
-    @PublishedApi
-    internal fun create(level: LogLevel, logger: Slf4jLogger): LogEvent {
-      if (LOGBACK_IS_ON_CLASSPATH && logger is LogbackLogger) {
-        return LogbackLogEvent(level, logger)
-      }
+  fun addStringField(key: String, value: String)
 
-      return Slf4jLogEvent(level, logger)
-    }
-
-    /**
-     * We want to support using this library without having Logback on the classpath at all (hence
-     * we mark it as an optional dependency in the POM). This is because if the user has chosen a
-     * different SLF4J implementation, loading Logback can interfere with that.
-     *
-     * If the user has not added Logback as a dependency, the below class loading will fail, and
-     * we'll stick to only using SLF4J. We cache the result in this field instead of doing the
-     * try/catch every time in [LogEvent.create], as that would pay the cost of the exception every
-     * time for non-Logback implementations.
-     */
-    internal val LOGBACK_IS_ON_CLASSPATH =
-        try {
-          Class.forName("ch.qos.logback.classic.Logger")
-          true
-        } catch (_: Throwable) {
-          false
-        }
-  }
-
-  /** Already implemented by [BaseLogbackEvent.setMessage] and [BaseSlf4jEvent.setMessage]. */
-  fun setMessage(message: String)
-
-  fun setCause(cause: Throwable?)
-
-  fun getCause(): Throwable?
-
-  fun addField(key: String, value: LogFieldValue)
+  fun addJsonField(key: String, json: String)
 
   fun isFieldKeyAdded(key: String): Boolean
 
-  fun log(logger: Slf4jLogger)
+  fun log(message: String, logger: Slf4jLogger)
 }
 
+@PublishedApi
+internal fun createLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLogger): LogEvent {
+  if (LOGBACK_IS_ON_CLASSPATH && logger is LogbackLogger) {
+    return LogbackLogEvent(level, cause, logger)
+  }
+
+  return Slf4jLogEvent(level, cause, logger)
+}
+
+/**
+ * We want to support using this library without having Logback on the classpath at all (hence we
+ * mark it as an optional dependency in the POM). This is because if the user has chosen a different
+ * SLF4J implementation, loading Logback can interfere with that.
+ *
+ * If the user has not added Logback as a dependency, the below class loading will fail, and we'll
+ * stick to only using SLF4J. We cache the result in this field instead of doing the try/catch every
+ * time in [createLogEvent], as that would pay the cost of the exception every time for non-Logback
+ * implementations.
+ */
+internal val LOGBACK_IS_ON_CLASSPATH =
+    try {
+      Class.forName("ch.qos.logback.classic.Logger")
+      true
+    } catch (_: Throwable) {
+      false
+    }
+
 /** Extends Logback's custom log event class to implement [LogEvent]. */
-internal class LogbackLogEvent(
-    level: LogLevel,
-    logger: LogbackLogger,
-) :
+internal class LogbackLogEvent(level: LogLevel, cause: Throwable?, logger: LogbackLogger) :
     LogEvent,
     BaseLogbackEvent(
         FULLY_QUALIFIED_CLASS_NAME,
         logger,
         level.toLogback(),
         null, // message (we set this when finalizing the log)
-        null, // throwable (may be set by LogBuilder)
+        cause,
         null, // argArray (we don't use this)
     ) {
-  override fun setCause(cause: Throwable?) {
-    /**
-     * Passing null to [ThrowableProxy] will throw, so we must only call it if cause is not null. We
-     * still want to allow passing null here, to support the case where the user has a cause
-     * exception that may or not be null.
-     *
-     * Calling [BaseLogbackEvent.setThrowableProxy] twice on the same event will also throw - and at
-     * the time of writing, there is no way to just overwrite the previous throwableProxy. We would
-     * rather ignore the second cause exception than throw an exception from our logger method, so
-     * we only set throwableProxy here if it has not already been set.
-     */
-    if (cause != null && super.getThrowableProxy() == null) {
-      super.setThrowableProxy(ThrowableProxy(cause))
-    }
+  override fun addStringField(key: String, value: String) {
+    super.addKeyValuePair(KeyValuePair(key, value))
   }
 
-  override fun getCause(): Throwable? = (super.getThrowableProxy() as? ThrowableProxy)?.throwable
-
-  override fun addField(key: String, value: LogFieldValue) {
-    super.addKeyValuePair(KeyValuePair(key, value))
+  override fun addJsonField(key: String, json: String) {
+    super.addKeyValuePair(KeyValuePair(key, RawJson(json)))
   }
 
   override fun isFieldKeyAdded(key: String): Boolean {
@@ -117,7 +96,9 @@ internal class LogbackLogEvent(
     return fields.any { it.key == key }
   }
 
-  override fun log(logger: Slf4jLogger) {
+  override fun log(message: String, logger: Slf4jLogger) {
+    super.setMessage(message)
+
     // Safe to cast here, since we only construct this event if the logger is a LogbackLogger.
     // We choose to cast instead of keeping the LogbackLogger as a field on the event, since casting
     // to a concrete class is fast, and we don't want to increase the allocated size of the event.
@@ -157,22 +138,17 @@ internal fun LogLevel.toLogback(): LogbackLevel {
 }
 
 /** Extends SLF4J's log event class to implement [LogEvent]. */
-internal class Slf4jLogEvent(level: LogLevel, logger: Slf4jLogger) :
-    LogEvent,
-    BaseSlf4jEvent(
-        level.slf4jLevel,
-        logger,
-    ) {
+internal class Slf4jLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLogger) :
+    LogEvent, BaseSlf4jEvent(level.slf4jLevel, logger) {
   init {
+    super.setThrowable(cause)
     super.setCallerBoundary(FULLY_QUALIFIED_CLASS_NAME)
     super.setTimeStamp(System.currentTimeMillis())
   }
 
-  override fun setCause(cause: Throwable?) = super.setThrowable(cause)
+  override fun addStringField(key: String, value: String) = super.addKeyValue(key, value)
 
-  override fun getCause(): Throwable? = super.getThrowable()
-
-  override fun addField(key: String, value: LogFieldValue) = super.addKeyValue(key, value)
+  override fun addJsonField(key: String, json: String) = super.addKeyValue(key, RawJson(json))
 
   override fun isFieldKeyAdded(key: String): Boolean {
     // getKeyValuePairs may return null if no fields have been added yet
@@ -180,7 +156,9 @@ internal class Slf4jLogEvent(level: LogLevel, logger: Slf4jLogger) :
     return fields.any { it.key == key }
   }
 
-  override fun log(logger: Slf4jLogger) {
+  override fun log(message: String, logger: Slf4jLogger) {
+    super.setMessage(message)
+
     when (logger) {
       // If logger is LoggingEventAware, we can just log the event directly
       is LoggingEventAware -> logger.log(this)
@@ -252,5 +230,32 @@ internal class Slf4jLogEvent(level: LogLevel, logger: Slf4jLogger) :
   internal companion object {
     /** See [LogbackLogEvent.FULLY_QUALIFIED_CLASS_NAME]. */
     internal val FULLY_QUALIFIED_CLASS_NAME = Slf4jLogEvent::class.java.name
+  }
+}
+
+/**
+ * Wrapper class for a pre-serialized JSON string. It implements [JsonSerializable] from Jackson,
+ * because most JSON-outputting logger implementations will use that library to encode the logs (at
+ * least `logstash-logback-encoder` for Logback does this).
+ *
+ * Since we use this to wrap a value that has already been serialized with `kotlinx.serialization`,
+ * we simply call [JsonGenerator.writeRawValue] in [serialize] to write the JSON string as-is.
+ */
+@PublishedApi
+@JvmInline
+internal value class RawJson(private val json: String) : JsonSerializable {
+  override fun toString() = json
+
+  override fun serialize(generator: JsonGenerator, serializers: SerializerProvider) {
+    generator.writeRawValue(json)
+  }
+
+  override fun serializeWithType(
+      generator: JsonGenerator,
+      serializers: SerializerProvider,
+      typeSerializer: TypeSerializer
+  ) {
+    // Since we don't know what type the raw JSON is, we can only redirect to normal serialization
+    serialize(generator, serializers)
   }
 }

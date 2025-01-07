@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test
 
 private val log = getLogger {}
 
-class LogFieldTest {
+internal class LogFieldTest {
   @Test
   fun `basic log field test`() {
     val output = captureLogOutput {
@@ -36,18 +36,18 @@ class LogFieldTest {
 
   @Test
   fun `log field with Serializable object`() {
-    val user = User(id = 1, name = "John Doe")
+    val event = Event(id = 1001, type = EventType.ORDER_PLACED)
 
     val output = captureLogOutput {
       log.info {
-        field("user", user)
+        field("event", event)
         "Test"
       }
     }
 
     output.logFields shouldBe
         """
-          "user":{"id":1,"name":"John Doe"}
+          "event":{"id":1001,"type":"ORDER_PLACED"}
         """
             .trimIndent()
   }
@@ -123,15 +123,15 @@ class LogFieldTest {
    */
   @Test
   fun `custom serializer with nullable value`() {
-    val user: User? = null
+    val event: Event? = null
 
     val output = captureLogOutput {
       withLoggingContext(
           // Test `field` in context and on log, since these are different functions
-          field("userInContext", user, User.serializer()),
+          field("eventInContext", event, Event.serializer()),
       ) {
         log.info {
-          field("user", user, User.serializer())
+          field("event", event, Event.serializer())
           "Test"
         }
       }
@@ -139,28 +139,28 @@ class LogFieldTest {
 
     output.logFields shouldBe
         """
-          "user":null
+          "event":null
         """
             .trimIndent()
-    output.contextFields shouldContainExactly mapOf("userInContext" to JsonNull)
+    output.contextFields shouldContainExactly mapOf("eventInContext" to JsonNull)
   }
 
   @Test
   fun `non-serializable object falls back to toString`() {
-    data class NonSerializableUser(val id: Long, val name: String)
+    data class NonSerializableEvent(val id: Long, val type: String)
 
-    val user = NonSerializableUser(id = 1, name = "John Doe")
+    val event = NonSerializableEvent(id = 1001, type = "ORDER_UPDATED")
 
     val output = captureLogOutput {
       log.info {
-        field("user", user)
+        field("event", event)
         "Test"
       }
     }
 
     output.logFields shouldBe
         """
-          "user":"NonSerializableUser(id=1, name=John Doe)"
+          "event":"NonSerializableEvent(id=1001, type=ORDER_UPDATED)"
         """
             .trimIndent()
   }
@@ -202,22 +202,22 @@ class LogFieldTest {
   }
 
   @Test
-  fun `addRawJsonField works for valid JSON`() {
-    val userJson = """{"id":1,"name":"John Doe"}"""
+  fun `rawJsonField works for valid JSON`() {
+    val eventJson = """{"id":1001,"type":"ORDER_UPDATED"}"""
 
     // The above JSON should work both for validJson = true and validJson = false
     for (assumeValidJson in listOf(true, false)) {
       withClue({ "assumeValidJson = ${assumeValidJson}" }) {
         val output = captureLogOutput {
           log.info {
-            rawJsonField("user", userJson, validJson = assumeValidJson)
+            rawJsonField("event", eventJson, validJson = assumeValidJson)
             "Test"
           }
         }
 
         output.logFields shouldBe
             """
-              "user":${userJson}
+              "event":${eventJson}
             """
                 .trimIndent()
       }
@@ -225,74 +225,73 @@ class LogFieldTest {
   }
 
   @Test
-  fun `addRawJsonField escapes invalid JSON by default`() {
+  fun `rawJsonField escapes invalid JSON by default`() {
     val invalidJson = """{"id":1"""
 
     val output = captureLogOutput {
       log.info {
-        rawJsonField("user", invalidJson)
+        rawJsonField("event", invalidJson)
         "Test"
       }
     }
 
     output.logFields shouldBe
         """
-          "user":"{\"id\":1"
+          "event":"{\"id\":1"
         """
             .trimIndent()
   }
 
   /**
-   * When the user sets validJson = true on addRawJsonField, they promise that the given JSON is
-   * valid, so it should be passed on as-is. We therefore verify here that no validity checks are
-   * made on the given JSON, although the user _should_ never pass invalid JSON to addRawJsonField
-   * like this.
+   * When the user sets validJson = true on rawJsonField, they promise that the given JSON is valid,
+   * so it should be passed on as-is. We therefore verify here that no validity checks are made on
+   * the given JSON, although the user _should_ never pass invalid JSON to rawJsonField like this.
    */
   @Test
-  fun `addRawJsonField does not escape invalid JSON when validJson is set to true`() {
+  fun `rawJsonField does not escape invalid JSON when validJson is set to true`() {
     val invalidJson = """{"id":1"""
 
     val output = captureLogOutput {
       log.info {
-        rawJsonField("user", invalidJson, validJson = true)
+        rawJsonField("event", invalidJson, validJson = true)
         "Test"
       }
     }
 
     output.logFields shouldBe
         """
-          "user":${invalidJson}
+          "event":${invalidJson}
         """
             .trimIndent()
   }
 
   @Test
-  fun `addRawJsonField re-encodes JSON when it contains newlines`() {
+  fun `rawJsonField re-encodes JSON when it contains newlines`() {
     val jsonWithNewlines =
         """
           {
-            "id": 1,
-            "name": "John Doe"
+            "id": 1001,
+            "type": "ORDER_UPDATED"
           }
         """
             .trimIndent()
 
     val output = captureLogOutput {
       log.info {
-        rawJsonField("user", jsonWithNewlines)
+        rawJsonField("event", jsonWithNewlines)
         "Test"
       }
     }
 
     output.logFields shouldBe
         """
-          "user":{"id":1,"name":"John Doe"}
+          "event":{"id":1001,"type":"ORDER_UPDATED"}
         """
             .trimIndent()
   }
 
   @Test
-  fun `addPreconstructedField allows adding a previously constructed field to the log`() {
+  fun `existingField allows adding a previously constructed field to the log`() {
     val existingField = field("key", "value")
 
     val output = captureLogOutput {

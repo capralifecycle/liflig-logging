@@ -8,14 +8,11 @@ import org.junit.jupiter.api.Test
 
 private val log = getLogger {}
 
-class ExceptionWithLogFieldsTest {
+internal class ExceptionWithLogFieldsTest {
   @Test
   fun `exception implementing WithLogFields has field included in log`() {
     val output = captureLogOutput {
-      log.error {
-        cause = exceptionWithLogField("exceptionField", "value")
-        "Test"
-      }
+      log.error(exceptionWithLogField("exceptionField", "value")) { "Test" }
     }
 
     output.logFields shouldBe
@@ -33,10 +30,7 @@ class ExceptionWithLogFieldsTest {
           throw exceptionWithLogField("exceptionField", "value")
         }
       } catch (e: Exception) {
-        log.error {
-          cause = e
-          "Test"
-        }
+        log.error(e) { "Test" }
       }
     }
 
@@ -60,10 +54,7 @@ class ExceptionWithLogFieldsTest {
         try {
           throw exceptionWithLogField("exceptionField", "value")
         } catch (e: Exception) {
-          log.error {
-            cause = e
-            "Test"
-          }
+          log.error(e) { "Test" }
         }
       }
     }
@@ -79,14 +70,12 @@ class ExceptionWithLogFieldsTest {
   @Test
   fun `child exception that implements WithLogFields`() {
     val output = captureLogOutput {
-      log.error {
-        cause =
-            Exception(
-                "Parent exception",
-                exceptionWithLogField("childException", "value"),
-            )
-        "Test"
-      }
+      val exception =
+          Exception(
+              "Parent exception",
+              exceptionWithLogField("childException", "value"),
+          )
+      log.error(exception) { "Test" }
     }
 
     output.logFields shouldBe
@@ -105,10 +94,7 @@ class ExceptionWithLogFieldsTest {
               logFields = listOf(field("parentField1", "value"), field("parentField2", "value")),
               cause = exceptionWithLogField("childField", "value"),
           )
-      log.error {
-        cause = exception
-        "Test"
-      }
+      log.error(exception) { "Test" }
     }
 
     output.logFields shouldBe
@@ -126,8 +112,7 @@ class ExceptionWithLogFieldsTest {
           throw exceptionWithLogField("exceptionField", "value")
         }
       } catch (e: Exception) {
-        log.error {
-          cause = e
+        log.error(e) {
           field("logEventField", "value")
           "Test"
         }
@@ -150,10 +135,7 @@ class ExceptionWithLogFieldsTest {
               listOf(field("duplicateKey", "value1"), field("duplicateKey", "value2")),
               cause = exceptionWithLogField("duplicateKey", "value3"),
           )
-      log.error {
-        cause = exception
-        "Test"
-      }
+      log.error(exception) { "Test" }
     }
 
     output.logFields shouldBe
@@ -170,8 +152,7 @@ class ExceptionWithLogFieldsTest {
   @Test
   fun `exception log field does not override duplicate log event field`() {
     val output = captureLogOutput {
-      log.error {
-        cause = exceptionWithLogField("duplicateKey", "from exception")
+      log.error(exceptionWithLogField("duplicateKey", "from exception")) {
         field("duplicateKey", "from log event")
         "Test"
       }
@@ -192,10 +173,7 @@ class ExceptionWithLogFieldsTest {
   fun `exception log field overrides duplicate context field`() {
     val output = captureLogOutput {
       withLoggingContext(field("duplicateKey", "from context")) {
-        log.error {
-          cause = exceptionWithLogField("duplicateKey", "from exception")
-          "Test"
-        }
+        log.error(exceptionWithLogField("duplicateKey", "from exception")) { "Test" }
       }
     }
 
@@ -208,24 +186,19 @@ class ExceptionWithLogFieldsTest {
 
   @Test
   fun `serializable object field works on ExceptionWithLogFields`() {
-    val user = User(id = 1, name = "John Doe")
+    val event = Event(id = 1001, type = EventType.ORDER_PLACED)
 
     val exception =
         ExceptionWithLogFields(
             message = null,
-            logFields = listOf(field("user", user)),
+            logFields = listOf(field("event", event)),
         )
 
-    val output = captureLogOutput {
-      log.error {
-        cause = exception
-        "Test"
-      }
-    }
+    val output = captureLogOutput { log.error(exception) { "Test" } }
 
     output.logFields shouldBe
         """
-          "user":{"id":1,"name":"John Doe"}
+          "event":{"id":1001,"type":"ORDER_PLACED"}
         """
             .trimIndent()
   }
@@ -240,12 +213,7 @@ class ExceptionWithLogFieldsTest {
           )
     }
 
-    val output = captureLogOutput {
-      log.error {
-        cause = CustomException()
-        "Test"
-      }
-    }
+    val output = captureLogOutput { log.error(cause = CustomException()) { "Test" } }
 
     output.logFields shouldBe
         """
@@ -262,12 +230,7 @@ class ExceptionWithLogFieldsTest {
             logFields = listOf(field("key", "value")),
         )
 
-    val output = captureLogOutput {
-      log.error {
-        cause = CustomException()
-        "Test"
-      }
-    }
+    val output = captureLogOutput { log.error(cause = CustomException()) { "Test" } }
 
     output.logFields shouldBe
         """
@@ -295,10 +258,7 @@ class ExceptionWithLogFieldsTest {
     exception2.settableCause = exception3
     exception3.settableCause = exception1
 
-    log.info {
-      cause = exception1
-      "Should not cause an infinite loop"
-    }
+    log.info(exception1) { "Should not cause an infinite loop" }
   }
 }
 

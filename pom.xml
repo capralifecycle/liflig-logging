@@ -169,6 +169,10 @@
         <artifactId>kotlin-maven-plugin</artifactId>
         <version>${kotlin.version}</version>
         <configuration>
+          <args>
+            <!-- Require explicit public modifiers, to avoid accidentally publishing internal APIs -->
+            <arg>-Xexplicit-api=strict</arg>
+          </args>
           <compilerPlugins>
             <plugin>kotlinx-serialization</plugin>
           </compilerPlugins>

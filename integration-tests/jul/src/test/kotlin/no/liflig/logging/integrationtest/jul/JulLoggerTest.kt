@@ -18,9 +18,9 @@ private val log = getLogger {}
 class JulLoggerTest {
   @Test
   fun log() {
-    @Serializable data class User(val id: Long, val name: String)
+    @Serializable data class Event(val id: Long, val type: String)
 
-    val user = User(id = 1, name = "John Doe")
+    val event = Event(id = 1001, type = "ORDER_UPDATED")
 
     // java.util.logging logger outputs to stderr by default
     val output = captureStderr {
@@ -28,7 +28,7 @@ class JulLoggerTest {
       // But we still want to test that using withLoggingContext here does not affect the log.
       withLoggingContext(rawJsonField("contextField", """{"test":true}""")) {
         log.info {
-          field("user", user)
+          field("event", event)
           "Test"
         }
       }
@@ -44,7 +44,7 @@ class JulLoggerTest {
     output.substring(indexOfPackageName).removeSuffix("\n") shouldBe
         """
           no.liflig.logging.integrationtest.jul.JulLoggerTest log
-          INFO: Test [user={"id":1,"name":"John Doe"}]
+          INFO: Test [event={"id":1001,"type":"ORDER_UPDATED"}]
         """
             .trimIndent()
   }

@@ -3,47 +3,36 @@ package no.liflig.logging
 import kotlinx.serialization.SerializationStrategy
 
 /**
- * Class used in the logging methods on [Logger], allowing you to set a [cause] exception and
- * [add structured key-value data][field] to a log.
+ * Class used in the logging methods on [Logger], allowing you to add structured key-value data to
+ * the log by calling the [field] and [rawJsonField] methods.
+ *
+ * This class is given as a receiver to the lambda arguments on `Logger`'s methods, which lets you
+ * call its methods directly in the scope of that lambda. This is a common technique for creating
+ * _type-safe builders_ in Kotlin (see the
+ * [Kotlin docs](https://kotlinlang.org/docs/lambdas.html#function-literals-with-receiver) for more
+ * on this).
  *
  * ### Example
  *
  * ```
  * private val log = getLogger {}
  *
- * fun example(user: User) {
- *   try {
- *     storeUser(user)
- *   } catch (e: Exception) {
- *     // The lambda argument passed to this logger method has a LogBuilder as its receiver, which
- *     // means that you can set `LogBuilder.cause` and call `LogBuilder.field` in this scope.
- *     log.error {
- *       cause = e
- *       field("user", user)
- *       "Failed to store user in database"
- *     }
+ * fun example(event: Event) {
+ *   log.info {
+ *     // This lambda gets a LogBuilder receiver, which means that we can call `LogBuilder.field`
+ *     // directly in this scope
+ *     field("event", event)
+ *     "Processing event"
  *   }
  * }
  * ```
  */
 @JvmInline // Inline value class, since we just wrap a log event
-value class LogBuilder
+public value class LogBuilder
 @PublishedApi
 internal constructor(
     @PublishedApi internal val logEvent: LogEvent,
 ) {
-  /**
-   * Set this if the log was caused by an exception, to include the exception message and stack
-   * trace in the log.
-   *
-   * This property should only be set once on a single log. If you set `cause` multiple times, only
-   * the first non-null exception will be kept (this is due to a limitation in Logback's
-   * LoggingEvent API).
-   */
-  var cause: Throwable?
-    set(value) = logEvent.setCause(value)
-    get() = logEvent.getCause()
-
   /**
    * Adds a [log field][LogField] (structured key-value data) to the log.
    *
@@ -53,8 +42,8 @@ internal constructor(
    *
    * The value is serialized using `kotlinx.serialization`, so if you pass an object here, you
    * should make sure it is annotated with [@Serializable][kotlinx.serialization.Serializable].
-   * Alternatively, you can pass your own serializer for the value. If serialization fails, we fall
-   * back to calling `toString()` on the value.
+   * Alternatively, you can pass your own [serializer] for the value. If serialization fails, we
+   * fall back to calling `toString()` on the value.
    *
    * If you have a value that is already serialized, you should use [rawJsonField] instead.
    *
@@ -67,31 +56,36 @@ internal constructor(
    * private val log = getLogger {}
    *
    * fun example() {
-   *   val user = User(id = 1, name = "John Doe")
+   *   val event = Event(id = 1001, type = EventType.ORDER_PLACED)
    *
    *   log.info {
-   *     field("user", user)
-   *     "Registered new user"
+   *     field("event", event)
+   *     "Processing event"
    *   }
    * }
    *
    * @Serializable
-   * data class User(val id: Long, val name: String)
+   * data class Event(val id: Long, val type: EventType)
+   *
+   * enum class EventType {
+   *   ORDER_PLACED,
+   *   ORDER_UPDATED,
+   * }
    * ```
    *
    * This gives the following output (using `logstash-logback-encoder`):
    * ```json
    * {
-   *   "message": "Registered new user",
-   *   "user": {
-   *     "id": "1",
-   *     "name": "John Doe"
+   *   "message": "Processing event",
+   *   "event": {
+   *     "id": 1001,
+   *     "type": "ORDER_PLACED"
    *   },
    *   // ...timestamp etc.
    * }
    * ```
    */
-  inline fun <reified ValueT : Any> field(
+  public inline fun <reified ValueT : Any> field(
       key: String,
       value: ValueT?,
       serializer: SerializationStrategy<ValueT>? = null,
@@ -100,8 +94,8 @@ internal constructor(
       encodeFieldValue(
           value,
           serializer,
-          onJson = { jsonValue -> logEvent.addField(key, RawJson(jsonValue)) },
-          onString = { stringValue -> logEvent.addField(key, stringValue) },
+          onJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
+          onString = { stringValue -> logEvent.addStringField(key, stringValue) },
       )
     }
   }
@@ -127,27 +121,31 @@ internal constructor(
    * private val log = getLogger {}
    *
    * fun example() {
-   *   val userJson = """{"id":1,"name":"John Doe"}"""
+   *   val eventJson = """{"id":1001,"type":"ORDER_PLACED"}"""
    *
    *   log.info {
-   *     addRawJsonField("user", userJson)
-   *     "Registered new user"
+   *     rawJsonField("event", eventJson)
+   *     "Processing event"
    *   }
    * }
    * ```
    *
    * This gives the following output (using `logstash-logback-encoder`):
    * ```json
-   * {"message":"Registered new user","user":{"id":1,"name":"John Doe"},/* ...timestamp etc. */}
+   * {
+   *   "message": "Processing event",
+   *   "event": {"id":1001,"type":"ORDER_PLACED"},
+   *   // ...timestamp etc.
+   * }
    * ```
    */
-  fun rawJsonField(key: String, json: String, validJson: Boolean = false) {
+  public fun rawJsonField(key: String, json: String, validJson: Boolean = false) {
     if (!logEvent.isFieldKeyAdded(key)) {
       validateRawJson(
           json,
           validJson,
-          onValidJson = { jsonValue -> logEvent.addField(key, RawJson(jsonValue)) },
-          onInvalidJson = { stringValue -> logEvent.addField(key, stringValue) },
+          onValidJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
+          onInvalidJson = { stringValue -> logEvent.addStringField(key, stringValue) },
       )
     }
   }
@@ -155,32 +153,27 @@ internal constructor(
   /**
    * Adds the given [log field][LogField] to the log. This is useful when you have a previously
    * constructed field from the
-   * [field][no.liflig.logging.field]/[rawJsonField][no.liflig.logging.rawJsonField] functions.
+   * [field][no.liflig.logging.field]/[rawJsonField][no.liflig.logging.rawJsonField] top-level
+   * functions, that you want to add to a single log.
    * - If you want to create a new field and add it to the log, you should instead call
    *   [LogBuilder.field]
    * - If you want to add the field to all logs within a scope, you should instead use
    *   [withLoggingContext]
    */
-  fun existingField(field: LogField) {
-    addFieldToLog(field)
-  }
-
-  @PublishedApi
-  internal fun finalize(message: String) {
-    logEvent.setMessage(message)
-
-    addFieldsFromCauseException()
+  public fun existingField(field: LogField) {
+    addField(field)
   }
 
   /**
    * Checks if the log [cause] exception (or any of its own cause exceptions) implements the
-   * [WithLogFields] interface, and if so, adds those fields.
+   * [WithLogFields] interface, and if so, adds those fields to the log.
    */
-  private fun addFieldsFromCauseException() {
+  @PublishedApi
+  internal fun addFieldsFromCauseException(cause: Throwable) {
     // The `cause` here is the log event cause exception. But this exception may itself have a
     // `cause` exception, and that may have another one, and so on. We want to go through all these
     // exceptions to look for log fields, so we re-assign this local variable as we iterate through.
-    var exception = cause
+    var exception: Throwable? = cause
     // Limit the depth of cause exceptions, so we don't expose ourselves to infinite loops.
     // This can happen if:
     // - exception1.cause -> exception2
@@ -190,7 +183,7 @@ internal constructor(
     var depth = 0
     while (exception != null && depth < 10) {
       if (exception is WithLogFields) {
-        exception.logFields.forEach(::addFieldToLog)
+        exception.logFields.forEach(::addField)
       }
 
       exception = exception.cause
@@ -198,12 +191,12 @@ internal constructor(
     }
   }
 
-  private fun addFieldToLog(field: LogField) {
+  private fun addField(field: LogField) {
     // Don't add fields with keys that have already been added
-    if (!logEvent.isFieldKeyAdded(field.key)) {
-      val value = field.getValueForLog()
-      if (value != null) {
-        logEvent.addField(field.key, value)
+    if (!logEvent.isFieldKeyAdded(field.key) && field.includeInLog()) {
+      when (field) {
+        is JsonLogField -> logEvent.addJsonField(field.key, field.value)
+        is StringLogField -> logEvent.addStringField(field.key, field.value)
       }
     }
   }
@@ -215,7 +208,7 @@ internal constructor(
       ReplaceWith("field(key, value, serializer)"),
       DeprecationLevel.ERROR,
   )
-  inline fun <reified ValueT> addField(
+  public inline fun <reified ValueT> addField(
       key: String,
       value: ValueT,
       serializer: SerializationStrategy<ValueT>? = null,
@@ -230,7 +223,7 @@ internal constructor(
       ReplaceWith("rawJsonField(key, json, validJson)"),
       DeprecationLevel.ERROR,
   )
-  fun addRawJsonField(key: String, json: String, validJson: Boolean = false) {
+  public fun addRawJsonField(key: String, json: String, validJson: Boolean = false) {
     rawJsonField(key, json, validJson)
   }
 
@@ -241,7 +234,7 @@ internal constructor(
       ReplaceWith("existingField(field)"),
       DeprecationLevel.ERROR,
   )
-  fun addPreconstructedField(field: LogField) {
+  public fun addPreconstructedField(field: LogField) {
     existingField(field)
   }
 }
