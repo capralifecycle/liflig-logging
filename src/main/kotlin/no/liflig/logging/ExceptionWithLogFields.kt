@@ -65,6 +65,45 @@ public open class ExceptionWithLogFields(
 ) : RuntimeException(), WithLogFields {
   // Final, since we want to ensure that fields from logging context are included
   final override val logFields: List<LogField> = combineFieldsWithLoggingContext(logFields)
+
+  /**
+   * Alternative [ExceptionWithLogFields] constructor that takes [log fields][LogField] as varargs,
+   * so you don't have to wrap them in `listOf()`.
+   *
+   * To pass [cause], use a named parameter.
+   */
+  public constructor(
+      message: String?,
+      vararg logFields: LogField,
+      cause: Throwable? = null,
+  ) : this(message, logFields.asList(), cause)
+
+  /**
+   * Alternative [ExceptionWithLogFields] constructor that defaults [message] to `cause.message` (if
+   * any). This lets you:
+   * - Wrap a cause exception with log fields, and use the cause exception's message
+   * - Extend `ExceptionWithLogFields` and override `message`, without having to pass it through the
+   *   constructor
+   */
+  public constructor(
+      logFields: List<LogField> = emptyList(),
+      cause: Throwable? = null,
+  ) : this(message = cause?.message, logFields, cause)
+
+  /**
+   * Alternative [ExceptionWithLogFields] constructor that both:
+   * - Takes [log fields][LogField] as varargs, so you don't have to wrap them in `listOf()`
+   * - Defaults [message] to `cause.message`. This lets you:
+   *     - Wrap a cause exception with log fields, and use the cause exception's message
+   *     - Extend `ExceptionWithLogFields` and override `message`, without having to pass it through
+   *       the constructor
+   *
+   * To pass [cause], use a named parameter.
+   */
+  public constructor(
+      vararg logFields: LogField,
+      cause: Throwable? = null,
+  ) : this(message = cause?.message, logFields.asList(), cause)
 }
 
 /** Combines the given log fields with any fields from [withLoggingContext]. */

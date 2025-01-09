@@ -239,6 +239,77 @@ internal class ExceptionWithLogFieldsTest {
             .trimIndent()
   }
 
+  @Test
+  fun `vararg overload works`() {
+    val cause = Exception("Cause")
+    val exception =
+        ExceptionWithLogFields(
+            "Test",
+            field("key1", "value1"),
+            field("key2", "value2"),
+            cause = cause,
+        )
+
+    exception.message shouldBe "Test"
+    exception.logFields shouldBe listOf(field("key1", "value1"), field("key2", "value2"))
+    exception.cause shouldBe cause
+  }
+
+  @Test
+  fun `overload without message works`() {
+    val cause = Exception("Cause message")
+    val exception =
+        ExceptionWithLogFields(
+            listOf(field("key", "value")),
+            cause,
+        )
+
+    exception.message shouldBe "Cause message"
+    exception.logFields shouldBe listOf(field("key", "value"))
+    exception.cause shouldBe cause
+  }
+
+  @Test
+  fun `vararg overload without message works`() {
+    val cause = Exception("Cause message")
+    val exception =
+        ExceptionWithLogFields(
+            field("key1", "value1"),
+            field("key2", "value2"),
+            cause = cause,
+        )
+
+    exception.message shouldBe "Cause message"
+    exception.logFields shouldBe listOf(field("key1", "value1"), field("key2", "value2"))
+    exception.cause shouldBe cause
+  }
+
+  @Test
+  fun `extending ExceptionWithLogFields and overriding message works`() {
+    class CustomException : ExceptionWithLogFields(listOf(field("key", "value"))) {
+      override val message = "Custom message"
+    }
+
+    val exception = CustomException()
+    exception.message shouldBe "Custom message"
+    exception.logFields shouldBe listOf(field("key", "value"))
+  }
+
+  @Test
+  fun `extending ExceptionWithLogFields with varargs and overriding message works`() {
+    class CustomException :
+        ExceptionWithLogFields(
+            field("key1", "value1"),
+            field("key2", "value2"),
+        ) {
+      override val message = "Custom message"
+    }
+
+    val exception = CustomException()
+    exception.message shouldBe "Custom message"
+    exception.logFields shouldBe listOf(field("key1", "value1"), field("key2", "value2"))
+  }
+
   /** See comment in [LogBuilder.addFieldsFromCauseException]. */
   @Test
   fun `exception cause cycle should not cause infinite loop`() {
