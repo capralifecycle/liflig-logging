@@ -232,7 +232,7 @@ internal class LogFieldTest {
             logBuilder.existingField(field)
           },
           RawJsonTestCase("rawJson function") { logBuilder, key, json, validJson ->
-            logBuilder.field(key, value = rawJson(json, isValid = validJson))
+            logBuilder.field(key, value = rawJson(json, validJson))
           },
       )
 

@@ -286,7 +286,7 @@ public fun rawJsonField(key: String, json: String, validJson: Boolean = false): 
  * our logs. If the JSON is valid, we can use [JsonUnquotedLiteral] to avoid having to re-encode it
  * when serializing into another object. But if it's not valid JSON, we escape it as a string
  * (returning a [JsonPrimitive]). If you are 100% sure that the given JSON string is valid and you
- * want to skip this check, you can set [isValid] to true.
+ * want to skip this check, you can set [validJson] to true.
  *
  * This is useful when you want to include a raw JSON field on a log. If it's a top-level field, you
  * can use [rawJsonField] - but if you want the field to be in a nested object, then you can use
@@ -321,16 +321,16 @@ public fun rawJsonField(key: String, json: String, validJson: Boolean = false): 
  * }
  * ```
  *
- * @param isValid Set this true if you are 100% sure that [json] is valid JSON, and you want to save
- *   the performance cost of validating it.
+ * @param validJson Set this true if you are 100% sure that [json] is valid JSON, and you want to
+ *   save the performance cost of validating it.
  */
 // For JsonUnquotedLiteral. This will likely be stabilized as-is:
 // https://github.com/Kotlin/kotlinx.serialization/issues/2900
 @OptIn(ExperimentalSerializationApi::class)
-public fun rawJson(json: String, isValid: Boolean = false): JsonElement {
+public fun rawJson(json: String, validJson: Boolean = false): JsonElement {
   return validateRawJson(
       json,
-      isValid,
+      validJson,
       onValidJson = { jsonValue ->
         when (jsonValue) {
           // JsonUnquotedLiteral prohibits creating a value from "null", so we have to check for
