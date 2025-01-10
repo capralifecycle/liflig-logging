@@ -14,9 +14,13 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 
 private val log = getLogger {}
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal class LogFieldTest {
   @Test
   fun `basic log field test`() {
@@ -201,8 +205,40 @@ internal class LogFieldTest {
             .trimIndent()
   }
 
-  @Test
-  fun `rawJsonField works for valid JSON`() {
+  /**
+   * We want to test handling of raw JSON by:
+   * - [LogBuilder.rawJsonField] method for adding log field to a log
+   * - [rawJsonField] function for creating log fields (for `withLoggingContext`)
+   * - [rawJson] function for creating a `JsonElement` from a raw JSON string
+   *
+   * So we create a test case for each of these, and run each test case through every test of raw
+   * JSON handling.
+   */
+  class RawJsonTestCase(
+      private val name: String,
+      val addRawJsonField:
+          (logBuilder: LogBuilder, key: String, json: String, validJson: Boolean) -> Unit,
+  ) {
+    override fun toString() = name
+  }
+
+  val rawJsonTestCases: List<RawJsonTestCase> =
+      listOf(
+          RawJsonTestCase("rawJsonField LogBuilder method") { logBuilder, key, json, validJson ->
+            logBuilder.rawJsonField(key, json, validJson)
+          },
+          RawJsonTestCase("rawJsonField function") { logBuilder, key, json, validJson ->
+            val field = rawJsonField(key, json, validJson)
+            logBuilder.existingField(field)
+          },
+          RawJsonTestCase("rawJson function") { logBuilder, key, json, validJson ->
+            logBuilder.field(key, value = rawJson(json, isValid = validJson))
+          },
+      )
+
+  @ParameterizedTest
+  @MethodSource("getRawJsonTestCases")
+  fun `raw JSON field works for valid JSON`(test: RawJsonTestCase) {
     val eventJson = """{"id":1001,"type":"ORDER_UPDATED"}"""
 
     // The above JSON should work both for validJson = true and validJson = false
@@ -210,7 +246,7 @@ internal class LogFieldTest {
       withClue({ "assumeValidJson = ${assumeValidJson}" }) {
         val output = captureLogOutput {
           log.info {
-            rawJsonField("event", eventJson, validJson = assumeValidJson)
+            test.addRawJsonField(this, "event", eventJson, assumeValidJson)
             "Test"
           }
         }
@@ -224,13 +260,14 @@ internal class LogFieldTest {
     }
   }
 
-  @Test
-  fun `rawJsonField escapes invalid JSON by default`() {
+  @ParameterizedTest
+  @MethodSource("getRawJsonTestCases")
+  fun `raw JSON field escapes invalid JSON by default`(test: RawJsonTestCase) {
     val invalidJson = """{"id":1"""
 
     val output = captureLogOutput {
       log.info {
-        rawJsonField("event", invalidJson)
+        test.addRawJsonField(this, "event", invalidJson, false)
         "Test"
       }
     }
@@ -247,13 +284,16 @@ internal class LogFieldTest {
    * so it should be passed on as-is. We therefore verify here that no validity checks are made on
    * the given JSON, although the user _should_ never pass invalid JSON to rawJsonField like this.
    */
-  @Test
-  fun `rawJsonField does not escape invalid JSON when validJson is set to true`() {
+  @ParameterizedTest
+  @MethodSource("getRawJsonTestCases")
+  fun `raw JSON field does not escape invalid JSON when validJson is set to true`(
+      test: RawJsonTestCase
+  ) {
     val invalidJson = """{"id":1"""
 
     val output = captureLogOutput {
       log.info {
-        rawJsonField("event", invalidJson, validJson = true)
+        test.addRawJsonField(this, "event", invalidJson, true)
         "Test"
       }
     }
@@ -265,8 +305,9 @@ internal class LogFieldTest {
             .trimIndent()
   }
 
-  @Test
-  fun `rawJsonField re-encodes JSON when it contains newlines`() {
+  @ParameterizedTest
+  @MethodSource("getRawJsonTestCases")
+  fun `raw JSON field re-encodes JSON when it contains newlines`(test: RawJsonTestCase) {
     val jsonWithNewlines =
         """
           {
@@ -278,7 +319,7 @@ internal class LogFieldTest {
 
     val output = captureLogOutput {
       log.info {
-        rawJsonField("event", jsonWithNewlines)
+        test.addRawJsonField(this, "event", jsonWithNewlines, false)
         "Test"
       }
     }
@@ -288,6 +329,17 @@ internal class LogFieldTest {
           "event":{"id":1001,"type":"ORDER_UPDATED"}
         """
             .trimIndent()
+  }
+
+  /**
+   * [kotlinx.serialization.json.JsonUnquotedLiteral], which we use in [rawJson], throws if given a
+   * literal "null" string. So we have to check for "null" and instead return [JsonNull] in that
+   * case - we want to test that this works.
+   */
+  @Test
+  fun `passing a JSON literal null to rawJson works`() {
+    val value = rawJson("null")
+    value shouldBe JsonNull
   }
 
   @Test

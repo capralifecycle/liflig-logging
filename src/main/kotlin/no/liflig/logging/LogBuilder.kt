@@ -111,7 +111,8 @@ internal constructor(
    * By default, this function checks that the given JSON string is actually valid JSON. The reason
    * for this is that giving raw JSON to our log encoder when it is not in fact valid JSON can break
    * our logs. So if the given JSON string is not valid JSON, we escape it as a string. If you are
-   * 100% sure that the given JSON string is valid, you can set [validJson] to true.
+   * 100% sure that the given JSON string is valid and you want to skip this check, you can set
+   * [validJson] to true.
    *
    * ### Example
    *
@@ -138,6 +139,9 @@ internal constructor(
    *   // ...timestamp etc.
    * }
    * ```
+   *
+   * @param validJson Set this true if you are 100% sure that [json] is valid JSON, and you want to
+   *   save the performance cost of validating it.
    */
   public fun rawJsonField(key: String, json: String, validJson: Boolean = false) {
     if (!logEvent.isFieldKeyAdded(key)) {
