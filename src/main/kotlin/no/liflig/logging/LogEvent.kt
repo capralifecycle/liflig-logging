@@ -242,8 +242,7 @@ internal class Slf4jLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLo
  * we simply call [JsonGenerator.writeRawValue] in [serialize] to write the JSON string as-is.
  */
 @PublishedApi
-@JvmInline
-internal value class RawJson(private val json: String) : JsonSerializable {
+internal class RawJson(private val json: String) : JsonSerializable {
   override fun toString() = json
 
   override fun serialize(generator: JsonGenerator, serializers: SerializerProvider) {
@@ -258,4 +257,8 @@ internal value class RawJson(private val json: String) : JsonSerializable {
     // Since we don't know what type the raw JSON is, we can only redirect to normal serialization
     serialize(generator, serializers)
   }
+
+  override fun equals(other: Any?) = other is RawJson && other.json == this.json
+
+  override fun hashCode() = json.hashCode()
 }
