@@ -61,19 +61,19 @@ package no.liflig.logging
  * ### Constructors
  *
  * `ExceptionWithLogFields` provides 4 constructor overloads:
- * - `(message: String?, logFields: List<LogField>, cause: Throwable? = null)`
+ * - `(message: String?, logFields: List<LogField>, cause: Throwable?)`
  *     - Primary constructor taking an exception message, a list of log fields and an optional cause
  *       exception
- * - `(message: String?, vararg logFields: LogField, cause: Throwable? = null)`
- *     - Takes log fields as varargs, so you don't have to wrap them in `listOf()`
+ * - `(message: String?, vararg logFields: LogField, cause: Throwable?)`
+ *     - Takes log fields as varargs, so you don't have to wrap them in a list
  *     - To pass `cause`, use a named parameter
- * - `(logFields: List<LogField>, cause: Throwable? = null)`
+ * - `(logFields: List<LogField>, cause: Throwable?)`
  *     - Defaults `message` to `cause.message`. This lets you:
  *         - Wrap a cause exception with log fields, and use the cause exception's message
  *         - Extend `ExceptionWithLogFields` and override `message`, without having to pass it
  *           through the constructor
- * - `(vararg logFields: LogField, cause: Throwable? = null)`
- *     - Combines the two previous constructor, to let you extend `ExceptionWithLogFields` and
+ * - `(vararg logFields: LogField, cause: Throwable?)`
+ *     - Combines the two previous constructors, to let you extend `ExceptionWithLogFields` and
  *       override `message` while also passing log fields as varargs
  */
 public open class ExceptionWithLogFields(
