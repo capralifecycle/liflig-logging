@@ -60,10 +60,10 @@ package no.liflig.logging
  *
  * ### Constructors
  *
- * The class provides 4 constructor overloads, for convenience:
+ * `ExceptionWithLogFields` provides 4 constructor overloads:
  * - `(message: String?, logFields: List<LogField>, cause: Throwable? = null)`
  *     - Primary constructor taking an exception message, a list of log fields and an optional cause
- *       exception.
+ *       exception
  * - `(message: String?, vararg logFields: LogField, cause: Throwable? = null)`
  *     - Takes log fields as varargs, so you don't have to wrap them in `listOf()`
  *     - To pass `cause`, use a named parameter
