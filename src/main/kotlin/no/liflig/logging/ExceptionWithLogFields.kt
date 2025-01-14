@@ -39,7 +39,7 @@ package no.liflig.logging
  *     if (!order.canBeUpdated()) {
  *       throw ExceptionWithLogFields(
  *           "Received update event for finalized order",
- *           logFields = listOf(field("order", order)),
+ *           field("order", order),
  *       )
  *     }
  *   }
@@ -57,6 +57,24 @@ package no.liflig.logging
  *   // ...timestamp etc.
  * }
  * ```
+ *
+ * ### Constructors
+ *
+ * The class provides 4 constructor overloads, for convenience:
+ * - `(message: String?, logFields: List<LogField>, cause: Throwable? = null)`
+ *     - Primary constructor taking an exception message, a list of log fields and an optional cause
+ *       exception.
+ * - `(message: String?, vararg logFields: LogField, cause: Throwable? = null)`
+ *     - Takes log fields as varargs, so you don't have to wrap them in `listOf()`
+ *     - To pass `cause`, use a named parameter
+ * - `(logFields: List<LogField>, cause: Throwable? = null)`
+ *     - Defaults `message` to `cause.message`. This lets you:
+ *         - Wrap a cause exception with log fields, and use the cause exception's message
+ *         - Extend `ExceptionWithLogFields` and override `message`, without having to pass it
+ *           through the constructor
+ * - `(vararg logFields: LogField, cause: Throwable? = null)`
+ *     - Combines the two previous constructor, to let you extend `ExceptionWithLogFields` and
+ *       override `message` while also passing log fields as varargs
  */
 public open class ExceptionWithLogFields(
     override val message: String?,
@@ -66,40 +84,17 @@ public open class ExceptionWithLogFields(
   // Final, since we want to ensure that fields from logging context are included
   final override val logFields: List<LogField> = combineFieldsWithLoggingContext(logFields)
 
-  /**
-   * Alternative [ExceptionWithLogFields] constructor that takes [log fields][LogField] as varargs,
-   * so you don't have to wrap them in `listOf()`.
-   *
-   * To pass [cause], use a named parameter.
-   */
   public constructor(
       message: String?,
       vararg logFields: LogField,
       cause: Throwable? = null,
   ) : this(message, logFields.asList(), cause)
 
-  /**
-   * Alternative [ExceptionWithLogFields] constructor that defaults [message] to `cause.message` (if
-   * any). This lets you:
-   * - Wrap a cause exception with log fields, and use the cause exception's message
-   * - Extend `ExceptionWithLogFields` and override `message`, without having to pass it through the
-   *   constructor
-   */
   public constructor(
       logFields: List<LogField> = emptyList(),
       cause: Throwable? = null,
   ) : this(message = cause?.message, logFields, cause)
 
-  /**
-   * Alternative [ExceptionWithLogFields] constructor that both:
-   * - Takes [log fields][LogField] as varargs, so you don't have to wrap them in `listOf()`
-   * - Defaults [message] to `cause.message`. This lets you:
-   *     - Wrap a cause exception with log fields, and use the cause exception's message
-   *     - Extend `ExceptionWithLogFields` and override `message`, without having to pass it through
-   *       the constructor
-   *
-   * To pass [cause], use a named parameter.
-   */
   public constructor(
       vararg logFields: LogField,
       cause: Throwable? = null,
