@@ -44,7 +44,7 @@
     <kotest.version>5.9.1</kotest.version>
 
     <!-- Maven plugins -->
-    <spotless-maven-plugin.version>2.44.1</spotless-maven-plugin.version>
+    <spotless-maven-plugin.version>2.44.2</spotless-maven-plugin.version>
     <ktfmt.version>0.43</ktfmt.version>
     <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
     <maven-enforcer-plugin.version>3.5.0</maven-enforcer-plugin.version>
