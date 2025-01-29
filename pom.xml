@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-    <kotlin.version>2.1.0</kotlin.version>
+    <kotlin.version>2.1.10</kotlin.version>
 
     <!-- Logging -->
     <slf4j.version>2.0.16</slf4j.version>
