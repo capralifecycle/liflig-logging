@@ -37,7 +37,7 @@
     <slf4j.version>2.0.16</slf4j.version>
 
     <!-- Serialization -->
-    <kotlinx-serialization.version>1.7.3</kotlinx-serialization.version>
+    <kotlinx-serialization.version>1.8.0</kotlinx-serialization.version>
 
     <!-- Testing -->
     <junit.version>5.11.4</junit.version>
