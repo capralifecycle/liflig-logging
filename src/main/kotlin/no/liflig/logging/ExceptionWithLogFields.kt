@@ -51,9 +51,9 @@ package no.liflig.logging
  * ```
  * {
  *   "message": "Failed to process order update event",
+ *   "stack_trace": "...ExceptionWithLogFields: Received update event for finalized order...",
  *   "order": { ... },
  *   "event": { ... },
- *   "stack_trace": "...",
  *   // ...timestamp etc.
  * }
  * ```
@@ -154,11 +154,11 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  *
  * fun updateOrder(order: Order) {
  *   if (!order.canBeUpdated()) {
- *     throw InvalidOrderState("Cannot update finalized order", order)
+ *     throw OrderUpdateException("Cannot update finalized order", order)
  *   }
  * }
  *
- * class InvalidOrderState(
+ * class OrderUpdateException(
  *     override val message: String,
  *     order: Order,
  * ) : RuntimeException(), WithLogFields {
@@ -167,12 +167,12 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  * ```
  *
  * The `log.error` would then give the following log output (using `logstash-logback-encoder`), with
- * the `order` log field from `InvalidOrderState` attached:
+ * the `order` log field from `OrderUpdateException` attached:
  * ```
  * {
  *   "message": "Failed to update order",
+ *   "stack_trace": "...OrderUpdateException: Cannot update finalized order...",
  *   "order": { ... },
- *   "stack_trace": "...",
  *   // ...timestamp etc.
  * }
  * ```
