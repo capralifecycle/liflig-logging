@@ -7,7 +7,7 @@
   <parent>
     <groupId>no.liflig</groupId>
     <artifactId>kotlin-parent</artifactId>
-    <version>3.20250228.043044</version>
+    <version>3.20250311.154534</version>
   </parent>
 
   <!--suppress MavenRedundantGroupId -->
@@ -199,7 +199,7 @@
             <toggleOffOn/>
             <ktfmt>
               <version>${ktfmt.version}</version>
-              <style>DEFAULT</style>
+              <style>META</style>
             </ktfmt>
           </kotlin>
         </configuration>

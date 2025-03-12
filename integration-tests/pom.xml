@@ -6,7 +6,7 @@
   <parent>
     <groupId>no.liflig</groupId>
     <artifactId>kotlin-parent</artifactId>
-    <version>3.20250228.043044</version>
+    <version>3.20250311.154534</version>
     <!-- Empty relativePath to not resolve locally https://stackoverflow.com/a/6006098 -->
     <relativePath/>
   </parent>
@@ -162,7 +162,7 @@
             <toggleOffOn/>
             <ktfmt>
               <version>${ktfmt.version}</version>
-              <style>DEFAULT</style>
+              <style>META</style>
             </ktfmt>
           </kotlin>
         </configuration>
