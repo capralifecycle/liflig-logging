@@ -6,7 +6,7 @@
   <parent>
     <groupId>no.liflig</groupId>
     <artifactId>kotlin-parent</artifactId>
-    <version>3.20250311.154534</version>
+    <version>3.20250312.133823</version>
     <!-- Empty relativePath to not resolve locally https://stackoverflow.com/a/6006098 -->
     <relativePath/>
   </parent>
