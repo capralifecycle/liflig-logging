@@ -1,6 +1,8 @@
 package no.liflig.logging
 
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -340,6 +342,70 @@ internal class LogFieldTest {
   fun `passing a JSON literal null to rawJson works`() {
     val value = rawJson("null")
     value shouldBe JsonNull
+  }
+
+  fun validJsonTestCases() =
+      listOf<String>(
+          // Valid literals
+          "\"string\"",
+          "true",
+          "false",
+          "null",
+          // Valid numbers (as per the JSON spec: https://json.org)
+          "0",
+          "1",
+          "123456789",
+          "0.0123456789",
+          "123456789.0123456789",
+          "0e2",
+          "0E2",
+          "2e2",
+          "2E2",
+          "0.1e2",
+          "0.1E2",
+          "2e+5",
+          "2e-5",
+          "9e123456789",
+      )
+
+  @ParameterizedTest
+  @MethodSource("validJsonTestCases")
+  fun `validateRawJson accepts valid JSON`(validJson: String) {
+    val isValid: Boolean =
+        validateRawJson(
+            validJson,
+            isValid = false,
+            onValidJson = { true },
+            onInvalidJson = { false },
+        )
+    isValid.shouldBeTrue()
+  }
+
+  fun invalidJsonTestCases() =
+      listOf<String>(
+          // Unquoted string
+          "test",
+          // Object with unquoted string field value
+          """{"test":test}""",
+          // Unquoted string with digits
+          "1test1",
+          // Blank string
+          "",
+          // All-whitespace string
+          "     ",
+      )
+
+  @ParameterizedTest
+  @MethodSource("invalidJsonTestCases")
+  fun `validateRawJson rejects invalid JSON`(invalidJson: String) {
+    val isValid: Boolean =
+        validateRawJson(
+            invalidJson,
+            isValid = false,
+            onValidJson = { true },
+            onInvalidJson = { false },
+        )
+    isValid.shouldBeFalse()
   }
 
   @Test

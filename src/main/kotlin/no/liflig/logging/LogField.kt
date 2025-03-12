@@ -8,12 +8,16 @@ import java.util.Objects
 import java.util.UUID
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationStrategy
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonUnquotedLiteral
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 /**
  * A log field is a key-value pair for adding structured data to logs.
@@ -271,7 +275,7 @@ internal inline fun <reified ValueT : Any, ReturnT> encodeFieldValue(
 public fun rawJsonField(key: String, json: String, validJson: Boolean = false): LogField {
   return validateRawJson(
       json,
-      validJson,
+      isValid = validJson,
       onValidJson = { jsonValue -> JsonLogField(key, jsonValue) },
       onInvalidJson = { stringValue -> StringLogField(key, stringValue) },
   )
@@ -330,7 +334,7 @@ public fun rawJsonField(key: String, json: String, validJson: Boolean = false): 
 public fun rawJson(json: String, validJson: Boolean = false): JsonElement {
   return validateRawJson(
       json,
-      validJson,
+      isValid = validJson,
       onValidJson = { jsonValue ->
         when (jsonValue) {
           // JsonUnquotedLiteral prohibits creating a value from "null", so we have to check for
@@ -368,6 +372,9 @@ internal inline fun <ReturnT> validateRawJson(
 
     // If we do not assume that the JSON is valid, we must try to decode it.
     val decoded = logFieldJson.parseToJsonElement(json)
+    if (!isValidJson(decoded)) {
+      return onInvalidJson(json)
+    }
 
     // If we successfully decoded the JSON, and it does not contain unescaped newlines, we can
     // return it as-is.
@@ -381,6 +388,37 @@ internal inline fun <ReturnT> validateRawJson(
   } catch (_: Exception) {
     // If we failed to decode/re-encode the JSON string, we return it as a non-JSON string.
     return onInvalidJson(json)
+  }
+}
+
+/**
+ * [kotlinx.serialization.json.Json.parseToJsonElement] says that it throws on invalid JSON input,
+ * but this is not true: It allows unquoted strings, such as `value`, and even unquoted strings in
+ * object values, like `{ "key": value }`. See
+ * https://github.com/Kotlin/kotlinx.serialization/issues/2511
+ *
+ * This is a deliberate design decision by kotlinx-serialization, so it may be kept as-is:
+ * https://github.com/Kotlin/kotlinx.serialization/issues/2375#issuecomment-1647826508
+ *
+ * To check that the result from `parseToJsonElement` is _actually_ valid JSON, we have to go
+ * through each element in it and verify that they're not an unquoted literal. We do this by
+ * checking that primitives are either strings, booleans, numbers or null.
+ */
+internal fun isValidJson(jsonElement: JsonElement): Boolean {
+  return when (jsonElement) {
+    is JsonArray -> {
+      jsonElement.all { arrayElement -> isValidJson(arrayElement) }
+    }
+    is JsonObject -> {
+      jsonElement.all { (_, objectValue) -> isValidJson(objectValue) }
+    }
+    is JsonNull -> true
+    is JsonPrimitive -> {
+      jsonElement.isString ||
+          jsonElement.booleanOrNull != null ||
+          jsonElement.doubleOrNull != null ||
+          jsonElement.longOrNull != null
+    }
   }
 }
 

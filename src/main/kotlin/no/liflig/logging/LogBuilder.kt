@@ -147,7 +147,7 @@ internal constructor(
     if (!logEvent.isFieldKeyAdded(key)) {
       validateRawJson(
           json,
-          validJson,
+          isValid = validJson,
           onValidJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
           onInvalidJson = { stringValue -> logEvent.addStringField(key, stringValue) },
       )
