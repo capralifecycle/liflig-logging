@@ -18,7 +18,7 @@
     <maven.deploy.skip>true</maven.deploy.skip>
     <root-path>${project.basedir}/..</root-path>
 
-    <logback.version>1.5.17</logback.version>
+    <logback.version>1.5.18</logback.version>
     <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
 
     <jackson.version>2.18.3</jackson.version>
