@@ -425,4 +425,26 @@ internal class LogFieldTest {
         """
             .trimIndent()
   }
+
+  @Test
+  fun `existingFields allows adding a list of previously constructed fields to the log`() {
+    val existingFields =
+        listOf(
+            field("key1", "value1"),
+            field("key2", "value2"),
+        )
+
+    val output = captureLogOutput {
+      log.info {
+        existingFields(existingFields)
+        "Test"
+      }
+    }
+
+    output.logFields shouldBe
+        """
+          "key1":"value1","key2":"value2"
+        """
+            .trimIndent()
+  }
 }
