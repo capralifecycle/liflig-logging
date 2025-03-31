@@ -231,7 +231,7 @@ internal class LogFieldTest {
           },
           RawJsonTestCase("rawJsonField function") { logBuilder, key, json, validJson ->
             val field = rawJsonField(key, json, validJson)
-            logBuilder.existingField(field)
+            logBuilder.addField(field)
           },
           RawJsonTestCase("rawJson function") { logBuilder, key, json, validJson ->
             logBuilder.field(key, value = rawJson(json, validJson))
@@ -409,12 +409,12 @@ internal class LogFieldTest {
   }
 
   @Test
-  fun `existingField allows adding a previously constructed field to the log`() {
+  fun `addField allows adding a previously constructed field to the log`() {
     val existingField = field("key", "value")
 
     val output = captureLogOutput {
       log.info {
-        existingField(existingField)
+        addField(existingField)
         "Test"
       }
     }
@@ -427,7 +427,7 @@ internal class LogFieldTest {
   }
 
   @Test
-  fun `existingFields allows adding a list of previously constructed fields to the log`() {
+  fun `addFields allows adding a list of previously constructed fields to the log`() {
     val existingFields =
         listOf(
             field("key1", "value1"),
@@ -436,7 +436,7 @@ internal class LogFieldTest {
 
     val output = captureLogOutput {
       log.info {
-        existingFields(existingFields)
+        addFields(existingFields)
         "Test"
       }
     }

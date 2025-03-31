@@ -160,12 +160,18 @@ internal constructor(
    * [field][no.liflig.logging.field]/[rawJsonField][no.liflig.logging.rawJsonField] top-level
    * functions, that you want to add to a single log.
    * - If you want to create a new field and add it to the log, you should instead call
-   *   [LogBuilder.field]
+   *   [LogBuilder.field] to create the field in-place
    * - If you want to add the field to all logs within a scope, you should instead use
    *   [withLoggingContext]
    */
-  public fun existingField(field: LogField) {
-    addField(field)
+  public fun addField(field: LogField) {
+    // Don't add fields with keys that have already been added
+    if (!logEvent.isFieldKeyAdded(field.key) && field.includeInLog()) {
+      when (field) {
+        is JsonLogField -> logEvent.addJsonField(field.key, field.value)
+        is StringLogField -> logEvent.addStringField(field.key, field.value)
+      }
+    }
   }
 
   /**
@@ -174,14 +180,24 @@ internal constructor(
    * [field][no.liflig.logging.field]/[rawJsonField][no.liflig.logging.rawJsonField] top-level
    * functions, that you want to add to a single log.
    * - If you want to create new fields and add them to the log, you should instead call
-   *   [LogBuilder.field]
+   *   [LogBuilder.field] to create the fields in-place
    * - If you want to add the fields to all logs within a scope, you should instead use
    *   [withLoggingContext]
    */
-  public fun existingFields(fields: Iterable<LogField>) {
+  public fun addFields(fields: Iterable<LogField>) {
     for (field in fields) {
       addField(field)
     }
+  }
+
+  @Deprecated("Renamed to 'addField'", ReplaceWith("addField(field)"), DeprecationLevel.ERROR)
+  public fun existingField(field: LogField) {
+    addField(field)
+  }
+
+  @Deprecated("Renamed to 'addFields'", ReplaceWith("addFields(fields)"), DeprecationLevel.ERROR)
+  public fun existingFields(fields: Iterable<LogField>) {
+    addFields(fields)
   }
 
   /**
@@ -208,16 +224,6 @@ internal constructor(
 
       exception = exception.cause
       depth++
-    }
-  }
-
-  private fun addField(field: LogField) {
-    // Don't add fields with keys that have already been added
-    if (!logEvent.isFieldKeyAdded(field.key) && field.includeInLog()) {
-      when (field) {
-        is JsonLogField -> logEvent.addJsonField(field.key, field.value)
-        is StringLogField -> logEvent.addStringField(field.key, field.value)
-      }
     }
   }
 }
