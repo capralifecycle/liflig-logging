@@ -47,7 +47,7 @@
     <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
 
     <!-- Serialization -->
-    <kotlinx-serialization.version>1.8.0</kotlinx-serialization.version>
+    <kotlinx-serialization.version>1.8.1</kotlinx-serialization.version>
     <jackson.version>2.18.3</jackson.version>
 
     <!-- Testing -->
