@@ -21,7 +21,7 @@
     <logback.version>1.5.18</logback.version>
     <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
 
-    <jackson.version>2.18.3</jackson.version>
+    <jackson.version>2.19.0</jackson.version>
   </properties>
 
   <dependencyManagement>
