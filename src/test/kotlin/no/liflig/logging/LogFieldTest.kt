@@ -151,6 +151,34 @@ internal class LogFieldTest {
     output.contextFields shouldContainExactly mapOf("eventInContext" to JsonNull)
   }
 
+  /**
+   * Previously, we allowed passing an explicit serializer to log field functions as an optional
+   * third parameter. But since these log field functions take reified type parameters, they would
+   * not work in non-inline generic contexts. However, we don't need reified type parameters when
+   * the user passes their own serializer, so this was a needless restriction. We solved it by using
+   * a separate function overload for the custom serializer variant instead of an optional
+   * parameter.
+   */
+  @Test
+  fun `custom serializer without reified type parameter`() {
+    fun <T> genericLogFunction(obj: T, serializer: SerializationStrategy<T>) {
+      log.info {
+        field("object", obj, serializer)
+        "Test"
+      }
+    }
+
+    val output = captureLogOutput {
+      genericLogFunction(Event(id = 1001, type = EventType.ORDER_PLACED), Event.serializer())
+    }
+
+    output.logFields shouldBe
+        """
+          "object":{"id":1001,"type":"ORDER_PLACED"}
+        """
+            .trimIndent()
+  }
+
   @Test
   fun `non-serializable object falls back to toString`() {
     data class NonSerializableEvent(val id: Long, val type: String)

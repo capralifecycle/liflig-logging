@@ -41,9 +41,13 @@ internal constructor(
    * choice, in a more structured manner than if you were to just use string concatenation.
    *
    * The value is serialized using `kotlinx.serialization`, so if you pass an object here, you
-   * should make sure it is annotated with [@Serializable][kotlinx.serialization.Serializable].
-   * Alternatively, you can pass your own [serializer] for the value. If serialization fails, we
-   * fall back to calling `toString()` on the value.
+   * should make sure it is annotated with [@Serializable][kotlinx.serialization.Serializable]. If
+   * serialization fails, we fall back to calling `toString()` on the value.
+   *
+   * If you want to specify the serializer for the value explicitly, you can call the overload of
+   * this method that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy]
+   * as a third argument. That is also useful for cases where you can't call this method with a
+   * reified type parameter.
    *
    * If you have a value that is already serialized, you should use [rawJsonField] instead.
    *
@@ -84,14 +88,100 @@ internal constructor(
    *   // ...timestamp etc.
    * }
    * ```
+   *
+   * ### Special-case handling for common types
+   *
+   * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
+   * here, using their `toString()` representation instead:
+   * - [java.time.Instant]
+   * - [java.util.UUID]
+   * - [java.net.URI]
+   * - [java.net.URL]
+   * - [java.math.BigDecimal]
    */
-  public inline fun <reified ValueT : Any> field(
-      key: String,
-      value: ValueT?,
-      serializer: SerializationStrategy<ValueT>? = null,
-  ) {
+  public inline fun <reified ValueT> field(key: String, value: ValueT) {
     if (!logEvent.isFieldKeyAdded(key)) {
       encodeFieldValue(
+          value,
+          onJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
+          onString = { stringValue -> logEvent.addStringField(key, stringValue) },
+      )
+    }
+  }
+
+  /**
+   * Adds a [log field][LogField] (structured key-value data) to the log.
+   *
+   * When outputting logs as JSON, this becomes a field in the logged JSON object (see example
+   * below). This allows you to filter and query on the field in the log analysis tool of your
+   * choice, in a more structured manner than if you were to just use string concatenation.
+   *
+   * The value is serialized using `kotlinx.serialization`, so if you pass an object here, you
+   * should make sure it is annotated with [@Serializable][kotlinx.serialization.Serializable]. If
+   * serialization fails, we fall back to calling `toString()` on the value.
+   *
+   * If you want to specify the serializer for the value explicitly, you can call the overload of
+   * this method that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy]
+   * as a third argument. That is also useful for cases where you can't call this method with a
+   * reified type parameter.
+   *
+   * If you have a value that is already serialized, you should use [rawJsonField] instead.
+   *
+   * ### Example
+   *
+   * ```
+   * import no.liflig.logging.getLogger
+   * import kotlinx.serialization.Serializable
+   *
+   * private val log = getLogger {}
+   *
+   * fun example() {
+   *   val event = Event(id = 1001, type = EventType.ORDER_PLACED)
+   *
+   *   log.info {
+   *     field("event", event)
+   *     "Processing event"
+   *   }
+   * }
+   *
+   * @Serializable
+   * data class Event(val id: Long, val type: EventType)
+   *
+   * enum class EventType {
+   *   ORDER_PLACED,
+   *   ORDER_UPDATED,
+   * }
+   * ```
+   *
+   * This gives the following output (using `logstash-logback-encoder`):
+   * ```json
+   * {
+   *   "message": "Processing event",
+   *   "event": {
+   *     "id": 1001,
+   *     "type": "ORDER_PLACED"
+   *   },
+   *   // ...timestamp etc.
+   * }
+   * ```
+   *
+   * ### Special-case handling for common types
+   *
+   * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
+   * here, using their `toString()` representation instead:
+   * - [java.time.Instant]
+   * - [java.util.UUID]
+   * - [java.net.URI]
+   * - [java.net.URL]
+   * - [java.math.BigDecimal]
+   */
+  public fun <ValueT : Any> field(
+      key: String,
+      value: ValueT?,
+      serializer: SerializationStrategy<ValueT>
+  ) {
+    if (!logEvent.isFieldKeyAdded(key)) {
+      encodeFieldValueWithSerializer(
           value,
           serializer,
           onJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },

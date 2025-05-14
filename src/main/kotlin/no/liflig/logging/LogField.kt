@@ -146,12 +146,18 @@ internal open class JsonLogField(
  * scope. If you just want to add a field to a single log, you should instead call
  * [LogBuilder.field] on one of [Logger]'s methods ([see example][LogBuilder.field]).
  *
- * The value is serialized using `kotlinx.serialization`, so if you pass an object here, it should
- * be annotated with [@Serializable][kotlinx.serialization.Serializable]. Alternatively, you can
- * pass your own [serializer] for the value. If serialization fails, we fall back to calling
- * `toString()` on the value.
+ * The value is serialized using `kotlinx.serialization`, so if you pass an object here, you should
+ * make sure it is annotated with [@Serializable][kotlinx.serialization.Serializable]. If
+ * serialization fails, we fall back to calling `toString()` on the value.
+ *
+ * If you want to specify the serializer for the value explicitly, you can call the overload of this
+ * function that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy] as a
+ * third argument. That is also useful for cases where you can't call this function with a reified
+ * type parameter.
  *
  * If you have a value that is already serialized, you should use [rawJsonField] instead.
+ *
+ * ### Special-case handling for common types
  *
  * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
  * here, using their `toString()` representation instead:
@@ -161,12 +167,48 @@ internal open class JsonLogField(
  * - [java.net.URL]
  * - [java.math.BigDecimal]
  */
-public inline fun <reified ValueT : Any> field(
+public inline fun <reified ValueT> field(key: String, value: ValueT): LogField {
+  return encodeFieldValue(
+      value,
+      onJson = { jsonValue -> JsonLogField(key, jsonValue) },
+      onString = { stringValue -> StringLogField(key, stringValue) },
+  )
+}
+
+/**
+ * Constructs a [LogField], a key-value pair for adding structured data to logs.
+ *
+ * This function is made to be used with [withLoggingContext], to add fields to all logs within a
+ * scope. If you just want to add a field to a single log, you should instead call
+ * [LogBuilder.field] on one of [Logger]'s methods ([see example][LogBuilder.field]).
+ *
+ * The value is serialized using `kotlinx.serialization`, so if you pass an object here, you should
+ * make sure it is annotated with [@Serializable][kotlinx.serialization.Serializable]. If
+ * serialization fails, we fall back to calling `toString()` on the value.
+ *
+ * If you want to specify the serializer for the value explicitly, you can call the overload of this
+ * function that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy] as a
+ * third argument. That is also useful for cases where you can't call this function with a reified
+ * type parameter.
+ *
+ * If you have a value that is already serialized, you should use [rawJsonField] instead.
+ *
+ * ### Special-case handling for common types
+ *
+ * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
+ * here, using their `toString()` representation instead:
+ * - [java.time.Instant]
+ * - [java.util.UUID]
+ * - [java.net.URI]
+ * - [java.net.URL]
+ * - [java.math.BigDecimal]
+ */
+public fun <ValueT : Any> field(
     key: String,
     value: ValueT?,
-    serializer: SerializationStrategy<ValueT>? = null
+    serializer: SerializationStrategy<ValueT>,
 ): LogField {
-  return encodeFieldValue(
+  return encodeFieldValueWithSerializer(
       value,
       serializer,
       onJson = { jsonValue -> JsonLogField(key, jsonValue) },
@@ -190,9 +232,8 @@ public inline fun <reified ValueT : Any> field(
  * and making the function `inline`, we pay no extra cost.
  */
 @PublishedApi
-internal inline fun <reified ValueT : Any, ReturnT> encodeFieldValue(
-    value: ValueT?,
-    serializer: SerializationStrategy<ValueT>?,
+internal inline fun <reified ValueT, ReturnT> encodeFieldValue(
+    value: ValueT,
     onJson: (String) -> ReturnT,
     onString: (String) -> ReturnT,
 ): ReturnT {
@@ -201,26 +242,42 @@ internal inline fun <reified ValueT : Any, ReturnT> encodeFieldValue(
       return onJson(JsonLogField.NULL_VALUE)
     }
 
-    if (serializer != null) {
-      val serializedValue = logFieldJson.encodeToString(serializer, value)
-      return onJson(serializedValue)
-    }
-
-    return when (ValueT::class) {
+    return when (value) {
       // Special case for String to avoid redundant serialization
-      String::class -> onString(value as String)
+      is String -> onString(value)
       // Special cases for common types that kotlinx.serialization doesn't handle by default.
       // If more cases are added here, you should add them to the list in the docstring for `field`.
-      Instant::class,
-      UUID::class,
-      URI::class,
-      URL::class,
-      BigDecimal::class -> onString(value.toString())
+      is Instant,
+      is UUID,
+      is URI,
+      is URL,
+      is BigDecimal -> onString(value.toString())
       else -> {
         val serializedValue = logFieldJson.encodeToString(value)
         onJson(serializedValue)
       }
     }
+  } catch (_: Exception) {
+    // We don't want to ever throw an exception from constructing a log field, which may happen if
+    // serialization fails, for example. So in these cases we fall back to toString().
+    return onString(value.toString())
+  }
+}
+
+/** Same as [encodeFieldValue], but takes a user-provided serializer for serializing the value. */
+internal inline fun <ValueT : Any, ReturnT> encodeFieldValueWithSerializer(
+    value: ValueT?,
+    serializer: SerializationStrategy<ValueT>,
+    onJson: (String) -> ReturnT,
+    onString: (String) -> ReturnT,
+): ReturnT {
+  try {
+    if (value == null) {
+      return onJson(JsonLogField.NULL_VALUE)
+    }
+
+    val serializedValue = logFieldJson.encodeToString(serializer, value)
+    return onJson(serializedValue)
   } catch (_: Exception) {
     // We don't want to ever throw an exception from constructing a log field, which may happen if
     // serialization fails, for example. So in these cases we fall back to toString().
