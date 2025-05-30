@@ -280,16 +280,6 @@ internal constructor(
     }
   }
 
-  @Deprecated("Renamed to 'addField'", ReplaceWith("addField(field)"), DeprecationLevel.ERROR)
-  public fun existingField(field: LogField) {
-    addField(field)
-  }
-
-  @Deprecated("Renamed to 'addFields'", ReplaceWith("addFields(fields)"), DeprecationLevel.ERROR)
-  public fun existingFields(fields: Iterable<LogField>) {
-    addFields(fields)
-  }
-
   /**
    * Checks if the log [cause] exception (or any of its own cause exceptions) implements the
    * [WithLogFields] interface, and if so, adds those fields to the log.
