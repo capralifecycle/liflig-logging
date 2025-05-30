@@ -299,7 +299,7 @@ internal constructor(
     var depth = 0
     while (exception != null && depth < 10) {
       if (exception is WithLogFields) {
-        exception.logFields.forEach(::addField)
+        addFields(exception.logFields)
       }
 
       exception = exception.cause
