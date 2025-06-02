@@ -51,7 +51,7 @@
     <jackson.version>2.19.0</jackson.version>
 
     <!-- Testing -->
-    <junit.version>5.12.2</junit.version>
+    <junit.version>5.13.0</junit.version>
     <kotest.version>5.9.1</kotest.version>
 
     <!-- Maven plugins -->
