@@ -248,9 +248,12 @@ public fun getLoggingContext(): List<LogField> {
  */
 @PublishedApi
 internal object LoggingContext {
-  // Kept for backwards compatibility (since we added `@JvmStatic` to `addFieldsStatic`, which is a
-  // binary-incompatible change). Once users have migrated, we should change this to `@JvmStatic` as
-  // well and delegate it to `addFieldsStatic`, and then finally merge the two declarations.
+  // Kept for backwards compatibility (since we added `@JvmStatic` to `addFieldsStatic`, which is
+  // a binary-incompatible change). TODO: Once users have migrated, change this to `@JvmStatic`
+  // as well, and use it from `withLoggingContextInternal` (still needs to delegate to
+  // `addFieldsStatic`, since users' compiled inline code will still call that). Once users have
+  // migrated to that, we can then finally rename `addFieldsStatic` to just `addFields`, and remove
+  // this.
   @PublishedApi
   internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields =
       addFieldsStatic(fields)
@@ -317,8 +320,11 @@ internal object LoggingContext {
   }
 
   // Kept for backwards compatibility (since we added `@JvmStatic` to `removeFieldsStatic`, which is
-  // a binary-incompatible change). Once users have migrated, we should change this to `@JvmStatic`
-  // as well and delegate it to `removeFieldsStatic`, and then finally merge the two declarations.
+  // a binary-incompatible change). TODO: Once users have migrated, change this to `@JvmStatic`
+  // as well, and use it from `withLoggingContextInternal` (still needs to delegate to
+  // `removeFieldsStatic`, since users' compiled inline code will still call that). Once users have
+  // migrated to that, we can then finally rename `removeFieldsStatic` to just `removeFields`, and
+  // remove this.
   @PublishedApi
   internal fun removeFields(
       fields: Array<out LogField>,
