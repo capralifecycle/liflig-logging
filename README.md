@@ -3,6 +3,10 @@
 Structured logging library for Kotlin, that aims to provide a developer-friendly API with near-zero
 runtime overhead. Wraps SLF4J and Logback on the JVM.
 
+v2 of the library is a fork of
+[`hermannm/devlog-kotlin`](https://github.com/hermannm/devlog-kotlin) (licensed under
+[MIT](#credits)), to make maintenance and distribution by Liflig easier.
+
 **Contents:**
 
 - [Usage](#usage)
@@ -10,7 +14,6 @@ runtime overhead. Wraps SLF4J and Logback on the JVM.
 - [Implementation](#implementation)
   - [Performance](#performance)
   - [Automatic logger names](#automatic-logger-names)
-- [Project Structure](#project-structure)
 - [Why another logging library?](#why-another-logging-library)
 - [Credits](#credits)
 
