@@ -502,7 +502,7 @@ internal fun getLogger(javaClass: Class<*>): Logger {
 }
 
 @Deprecated(
-    "Replaced by zero-argument getLogger() overload. You can search-and-replace 'getLogger {}' -> 'getLogger()' to update",
+    "Replaced by zero-parameter getLogger() overload. You can search-and-replace 'getLogger {}' -> 'getLogger()' to update",
 )
 public fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
   val name = normalizeLoggerName(emptyLambdaToGetName::class.qualifiedName)
