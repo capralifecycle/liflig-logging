@@ -40,7 +40,6 @@
     <kotlinx-serialization.version>1.8.1</kotlinx-serialization.version>
 
     <!-- Testing -->
-    <junit.version>5.13.0</junit.version>
     <kotest.version>5.9.1</kotest.version>
 
     <!-- Maven plugins -->
@@ -100,9 +99,10 @@
 
     <!-- Testing -->
     <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <version>${junit.version}</version>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-test-junit5</artifactId>
+      <version>${kotlin.version}</version>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>io.kotest</groupId>

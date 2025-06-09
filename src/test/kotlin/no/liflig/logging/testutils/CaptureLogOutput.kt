@@ -1,18 +1,13 @@
-package no.liflig.logging
+package no.liflig.logging.testutils
 
-import ch.qos.logback.classic.Logger as LogbackLogger
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContainOnlyOnce
-import io.kotest.matchers.types.shouldBeInstanceOf
-import io.kotest.matchers.types.shouldNotBeInstanceOf
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
-import org.slf4j.Logger as Slf4jLogger
-import org.slf4j.spi.LocationAwareLogger
-import org.slf4j.spi.LoggingEventAware
+import no.liflig.logging.jsonEncoder
 
 internal data class LogOutput(
     /** String of all JSON-encoded log-event-specific fields from log output, in order. */
@@ -43,6 +38,7 @@ internal fun captureLogOutput(block: () -> Unit): LogOutput {
   }
 
   val logOutput = outputStream.toString("UTF-8")
+
   // We expect each call to captureLogFields to capture just a single log line, so it should only
   // contain 1 newline. If we get more, that is likely an error and should fail our tests.
   logOutput shouldContainOnlyOnce "\n"
@@ -92,7 +88,7 @@ internal fun captureLogOutput(block: () -> Unit): LogOutput {
 
   val contextFields =
       try {
-        logFieldJson.decodeFromString<ContextFieldsInLogOutput>(logOutput).context
+        jsonEncoder.decodeFromString<ContextFieldsInLogOutput>(logOutput).context
       } catch (_: Exception) {
         null
       }
@@ -166,46 +162,3 @@ private fun indexAfterJsonNumberField(json: String, startIndex: Int): Int? {
 
   return null
 }
-
-internal class EventAwareSlf4jLogger(
-    private val logbackLogger: LogbackLogger,
-) : Slf4jLogger by logbackLogger, LoggingEventAware by logbackLogger {
-  init {
-    this.shouldNotBeInstanceOf<LogbackLogger>()
-    this.shouldBeInstanceOf<LoggingEventAware>()
-  }
-}
-
-internal class LocationAwareSlf4jLogger(
-    private val logbackLogger: LogbackLogger,
-) : LocationAwareLogger by logbackLogger {
-  init {
-    this.shouldNotBeInstanceOf<LogbackLogger>()
-    this.shouldNotBeInstanceOf<LoggingEventAware>()
-    this.shouldBeInstanceOf<LocationAwareLogger>()
-  }
-}
-
-internal class PlainSlf4jLogger(
-    private val logbackLogger: LogbackLogger,
-) : Slf4jLogger by logbackLogger {
-  init {
-    this.shouldNotBeInstanceOf<LogbackLogger>()
-    this.shouldNotBeInstanceOf<LoggingEventAware>()
-    this.shouldNotBeInstanceOf<LocationAwareSlf4jLogger>()
-  }
-}
-
-/** Serializable example class for tests. */
-@Serializable internal data class Event(val id: Long, val type: EventType)
-
-internal enum class EventType {
-  ORDER_PLACED,
-  ORDER_UPDATED,
-}
-
-/**
- * Used in [LoggerTest] to test that the logger gets the expected name from the file it's
- * constructed in.
- */
-internal val loggerInOtherFile = getLogger {}

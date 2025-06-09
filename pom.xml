@@ -18,7 +18,8 @@
 
   <name>liflig-logging</name>
   <description>
-    Logging library for Kotlin JVM, that thinly wraps SLF4J and Logback to provide a more ergonomic API.
+    Structured logging library for Kotlin, that aims to provide a developer-friendly API with near-zero runtime
+    overhead.
   </description>
 
   <licenses>
@@ -51,7 +52,6 @@
     <jackson.version>2.19.0</jackson.version>
 
     <!-- Testing -->
-    <junit.version>5.13.0</junit.version>
     <kotest.version>5.9.1</kotest.version>
 
     <!-- Maven plugins -->
@@ -61,7 +61,6 @@
   </properties>
 
   <dependencies>
-
     <!-- Logging -->
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -106,15 +105,9 @@
 
     <!-- Testing -->
     <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <version>${junit.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-params</artifactId>
-      <version>${junit.version}</version>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-test-junit5</artifactId>
+      <version>${kotlin.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>

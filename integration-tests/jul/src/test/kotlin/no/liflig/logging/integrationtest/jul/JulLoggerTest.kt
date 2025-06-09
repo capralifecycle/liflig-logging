@@ -6,13 +6,13 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import kotlin.test.Test
 import kotlinx.serialization.Serializable
 import no.liflig.logging.getLogger
 import no.liflig.logging.rawJsonField
 import no.liflig.logging.withLoggingContext
-import org.junit.jupiter.api.Test
 
-private val log = getLogger {}
+private val log = getLogger()
 
 /** Tests the slf4j-jdk14 implementation, which uses java.util.logging (commonly called JUL). */
 class JulLoggerTest {

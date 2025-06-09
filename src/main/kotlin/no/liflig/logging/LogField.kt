@@ -4,7 +4,6 @@ import java.math.BigDecimal
 import java.net.URI
 import java.net.URL
 import java.time.Instant
-import java.util.Objects
 import java.util.UUID
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationStrategy
@@ -18,11 +17,12 @@ import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
+import org.slf4j.LoggerFactory as Slf4jLoggerFactory
 
 /**
  * A log field is a key-value pair for adding structured data to logs.
  *
- * When outputting logs as JSON (using
+ * When outputting logs as JSON (using e.g.
  * [logstash-logback-encoder](https://github.com/logfellow/logstash-logback-encoder)), this becomes
  * a field in the logged JSON object. That allows you to filter and query on the field in the log
  * analysis tool of your choice, in a more structured manner than if you were to just use string
@@ -44,7 +44,7 @@ import kotlinx.serialization.json.longOrNull
  * import no.liflig.logging.getLogger
  * import kotlinx.serialization.Serializable
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example() {
  *   val event = Event(id = 1001, type = EventType.ORDER_PLACED)
@@ -76,65 +76,80 @@ import kotlinx.serialization.json.longOrNull
  * }
  * ```
  */
-public sealed class LogField {
-  internal abstract val key: String
-  internal abstract val value: String
+public abstract class LogField
+internal constructor(
+    @JvmField internal val key: String,
+    @JvmField internal val value: String,
+) {
   /**
-   * [JsonLogField] adds a suffix ([LOGGING_CONTEXT_JSON_KEY_SUFFIX]) to the key in the logging
-   * context to identify the value as raw JSON (so we can write the JSON unescaped in
-   * [LoggingContextJsonFieldWriter]).
+   * Should call [LogEvent.addJsonField] / [LogEvent.addStringField] to add this field to the log.
    */
-  internal abstract val keyForLoggingContext: String
+  internal abstract fun addToLogEvent(logEvent: LogEvent)
 
   /**
-   * Returns false if the field should not be included in the log (used by
-   * [StringLogFieldFromContext]/[JsonLogFieldFromContext] to exclude fields that are already in the
-   * logging context).
+   * [JsonLogField] adds a suffix to the key in the logging context to identify the value as raw
+   * JSON (so we can write the JSON unescaped in `LoggingContextJsonFieldWriter`).
    */
-  internal open fun includeInLog(): Boolean = true
+  internal abstract fun getKeyForLoggingContext(): String
 
+  /**
+   * Returns a string representation of the log field, formatted as `${key}=${value}`.
+   *
+   * You should not rely on this format for anything other than debugging.
+   */
   override fun toString(): String = "${key}=${value}"
 
+  /** Two log fields are equal if their keys and values are equal. */
   override fun equals(other: Any?): Boolean =
       other is LogField && this.key == other.key && this.value == other.value
 
-  override fun hashCode(): Int = Objects.hash(key, value)
+  /** Returns the combined hash code of the key and value for this log field. */
+  override fun hashCode(): Int =
+      key.hashCode() * 31 + value.hashCode() // 31 is default factor for aggregate hash codes
 }
 
 @PublishedApi
-internal open class StringLogField(
-    override val key: String,
-    override val value: String,
-) : LogField() {
-  override val keyForLoggingContext: String
-    get() = key
+internal open class StringLogField(key: String, value: String) : LogField(key, value) {
+  override fun addToLogEvent(logEvent: LogEvent) {
+    logEvent.addStringField(key, value)
+  }
+
+  final override fun getKeyForLoggingContext(): String = key
 }
 
 @PublishedApi
 internal open class JsonLogField(
-    override val key: String,
-    override val value: String,
-    override val keyForLoggingContext: String =
+    key: String,
+    value: String,
+    private val keyForLoggingContext: String =
         if (ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS) {
           key + LOGGING_CONTEXT_JSON_KEY_SUFFIX
         } else {
           key
-        }
-) : LogField() {
+        },
+) : LogField(key, value) {
+  override fun addToLogEvent(logEvent: LogEvent) {
+    logEvent.addJsonField(key, value)
+  }
+
+  final override fun getKeyForLoggingContext(): String = keyForLoggingContext
+
+  // TODO: Remove PublishedApi once users have migrated away from JsonLogField.NULL_VALUE
   @PublishedApi
   internal companion object {
-    /**
-     * SLF4J supports null values in `KeyValuePair`s, and it's up to the logger implementation for
-     * how to handle it. In the case of Logback and `logstash-logback-encoder`, key-value pairs with
-     * `null` values are omitted entirely. But this can be confusing for the user, since they may
-     * think the log field was omitted due to some error. So in this library, we instead use a JSON
-     * `null` as the value for null log fields.
-     */
-    @PublishedApi internal const val NULL_VALUE: String = "null"
+    // Kept for backwards compatibility. TODO: Remove once users have migrated
+    @Suppress("unused") @PublishedApi internal const val NULL_VALUE: String = JSON_NULL_VALUE
 
     init {
-      // Needed to make sure ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS is set
-      ensureLoggerImplementationIsLoaded()
+      try {
+        /**
+         * Needed to make sure [ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS] is set.
+         *
+         * We catch all throwables here, since this is called in a static initializer where we never
+         * wanna throw, and it's OK for this to fail silently.
+         */
+        ensureLoggerImplementationIsLoaded()
+      } catch (_: Throwable) {}
     }
   }
 }
@@ -152,7 +167,7 @@ internal open class JsonLogField(
  *
  * If you want to specify the serializer for the value explicitly, you can call the overload of this
  * function that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy] as a
- * third argument. That is also useful for cases where you can't call this function with a reified
+ * third parameter. That is also useful for cases where you can't call this function with a reified
  * type parameter.
  *
  * If you have a value that is already serialized, you should use [rawJsonField] instead.
@@ -161,11 +176,11 @@ internal open class JsonLogField(
  *
  * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
  * here, using their `toString()` representation instead:
- * - [java.time.Instant]
- * - [java.util.UUID]
- * - [java.net.URI]
- * - [java.net.URL]
- * - [java.math.BigDecimal]
+ * - `java.time.Instant`
+ * - `java.util.UUID`
+ * - `java.net.URI`
+ * - `java.net.URL`
+ * - `java.math.BigDecimal`
  */
 public inline fun <reified ValueT> field(key: String, value: ValueT): LogField {
   return encodeFieldValue(
@@ -188,7 +203,7 @@ public inline fun <reified ValueT> field(key: String, value: ValueT): LogField {
  *
  * If you want to specify the serializer for the value explicitly, you can call the overload of this
  * function that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy] as a
- * third argument. That is also useful for cases where you can't call this function with a reified
+ * third parameter. That is also useful for cases where you can't call this function with a reified
  * type parameter.
  *
  * If you have a value that is already serialized, you should use [rawJsonField] instead.
@@ -197,11 +212,11 @@ public inline fun <reified ValueT> field(key: String, value: ValueT): LogField {
  *
  * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
  * here, using their `toString()` representation instead:
- * - [java.time.Instant]
- * - [java.util.UUID]
- * - [java.net.URI]
- * - [java.net.URL]
- * - [java.math.BigDecimal]
+ * - `java.time.Instant`
+ * - `java.util.UUID`
+ * - `java.net.URI`
+ * - `java.net.URL`
+ * - `java.math.BigDecimal`
  */
 public fun <ValueT : Any> field(
     key: String,
@@ -234,32 +249,22 @@ public fun <ValueT : Any> field(
 @PublishedApi
 internal inline fun <reified ValueT, ReturnT> encodeFieldValue(
     value: ValueT,
-    onJson: (String) -> ReturnT,
-    onString: (String) -> ReturnT,
+    crossinline onJson: (String) -> ReturnT,
+    crossinline onString: (String) -> ReturnT,
 ): ReturnT {
   try {
-    if (value == null) {
-      return onJson(JsonLogField.NULL_VALUE)
-    }
-
-    return when (value) {
-      // Special case for String to avoid redundant serialization
-      is String -> onString(value)
-      // Special cases for common types that kotlinx.serialization doesn't handle by default.
-      // If more cases are added here, you should add them to the list in the docstring for `field`.
-      is Instant,
-      is UUID,
-      is URI,
-      is URL,
-      is BigDecimal -> onString(value.toString())
-      else -> {
-        val serializedValue = logFieldJson.encodeToString(value)
-        onJson(serializedValue)
-      }
+    return when {
+      value == null -> onJson(JSON_NULL_VALUE)
+      // Special case for String, to avoid redundant serialization
+      value is String -> onString(value)
+      // Special case for common types that kotlinx.serialization doesn't handle by default
+      fieldValueShouldUseToString(value) -> onString(value.toString())
+      // Try to serialize with kotlinx.serialization - if it fails, we fall back to toString below
+      else -> onJson(jsonEncoder.encodeToString(value))
     }
   } catch (_: Exception) {
     // We don't want to ever throw an exception from constructing a log field, which may happen if
-    // serialization fails, for example. So in these cases we fall back to toString().
+    // serialization fails, for example. So in these cases we fall back to toString()
     return onString(value.toString())
   }
 }
@@ -268,16 +273,16 @@ internal inline fun <reified ValueT, ReturnT> encodeFieldValue(
 internal inline fun <ValueT : Any, ReturnT> encodeFieldValueWithSerializer(
     value: ValueT?,
     serializer: SerializationStrategy<ValueT>,
-    onJson: (String) -> ReturnT,
-    onString: (String) -> ReturnT,
+    crossinline onJson: (String) -> ReturnT,
+    crossinline onString: (String) -> ReturnT,
 ): ReturnT {
   try {
-    if (value == null) {
-      return onJson(JsonLogField.NULL_VALUE)
+    return when {
+      // Handle nulls here, so users don't have to deal with passing a null-handling serializer
+      value == null -> onJson(JSON_NULL_VALUE)
+      // Try to serialize with kotlinx.serialization - if it fails, we fall back to toString below
+      else -> onJson(jsonEncoder.encodeToString(serializer, value))
     }
-
-    val serializedValue = logFieldJson.encodeToString(serializer, value)
-    return onJson(serializedValue)
   } catch (_: Exception) {
     // We don't want to ever throw an exception from constructing a log field, which may happen if
     // serialization fails, for example. So in these cases we fall back to toString().
@@ -307,7 +312,7 @@ internal inline fun <ValueT : Any, ReturnT> encodeFieldValueWithSerializer(
  * import no.liflig.logging.rawJsonField
  * import no.liflig.logging.withLoggingContext
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example() {
  *   val eventJson = """{"id":1001,"type":"ORDER_PLACED"}"""
@@ -361,7 +366,7 @@ public fun rawJsonField(key: String, json: String, validJson: Boolean = false): 
  * import kotlinx.serialization.Serializable
  * import kotlinx.serialization.json.JsonElement
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example() {
  *   // We hope the external service returns valid JSON, but we can't trust that fully. If it did
@@ -414,8 +419,8 @@ public fun rawJson(json: String, validJson: Boolean = false): JsonElement {
 internal inline fun <ReturnT> validateRawJson(
     json: String,
     isValid: Boolean,
-    onValidJson: (String) -> ReturnT,
-    onInvalidJson: (String) -> ReturnT
+    crossinline onValidJson: (String) -> ReturnT,
+    crossinline onInvalidJson: (String) -> ReturnT
 ): ReturnT {
   try {
     // Some log platforms (e.g. AWS CloudWatch) use newlines as the separator between log messages.
@@ -428,7 +433,7 @@ internal inline fun <ReturnT> validateRawJson(
     }
 
     // If we do not assume that the JSON is valid, we must try to decode it.
-    val decoded = logFieldJson.parseToJsonElement(json)
+    val decoded = jsonEncoder.parseToJsonElement(json)
     if (!isValidJson(decoded)) {
       return onInvalidJson(json)
     }
@@ -440,7 +445,7 @@ internal inline fun <ReturnT> validateRawJson(
     }
 
     // If the JSON did contain unescaped newlines, then we need to re-encode to escape them.
-    val encoded = logFieldJson.encodeToString(JsonElement.serializer(), decoded)
+    val encoded = jsonEncoder.encodeToString(JsonElement.serializer(), decoded)
     return onValidJson(encoded)
   } catch (_: Exception) {
     // If we failed to decode/re-encode the JSON string, we return it as a non-JSON string.
@@ -479,8 +484,135 @@ internal fun isValidJson(jsonElement: JsonElement): Boolean {
   }
 }
 
+internal fun createLogFieldFromContext(key: String, value: String): LogField {
+  return if (ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS &&
+      key.endsWith(LOGGING_CONTEXT_JSON_KEY_SUFFIX)) {
+    JsonLogFieldFromContext(key, value)
+  } else {
+    StringLogFieldFromContext(key, value)
+  }
+}
+
+internal class StringLogFieldFromContext(key: String, value: String) : StringLogField(key, value) {
+  override fun addToLogEvent(logEvent: LogEvent) {
+    // We only want to include fields from the logging context if it's not already in the context
+    // (in which case the logger implementation will add the fields from SLF4J's MDC).
+    if (!LoggingContext.contains(this)) {
+      logEvent.addStringField(key, value)
+    }
+  }
+}
+
+internal class JsonLogFieldFromContext(
+    /**
+     * We construct this log field with keys that already have the JSON key suffix (see
+     * [createLogFieldFromContext]). So we set [keyForLoggingContext] to the key with the suffix,
+     * and remove the suffix for [key] below.
+     */
+    keyWithJsonSuffix: String,
+    value: String,
+) :
+    JsonLogField(
+        key = keyWithJsonSuffix.removeSuffix(LOGGING_CONTEXT_JSON_KEY_SUFFIX),
+        value = value,
+        keyForLoggingContext = keyWithJsonSuffix,
+    ) {
+  override fun addToLogEvent(logEvent: LogEvent) {
+    // We only want to include fields from the logging context if it's not already in the context
+    // (in which case the logger implementation will add the fields from SLF4J's MDC).
+    if (!LoggingContext.contains(this)) {
+      logEvent.addJsonField(key, value)
+    }
+  }
+}
+
+/**
+ * SLF4J's MDC only supports String values. This works fine for our [StringLogField] - but we also
+ * want the ability to include JSON-serialized objects in our logging context. This is useful when
+ * for example processing an event, and you want that event to be included on all logs in the scope
+ * of processing it. If we were to just include it as a string, the JSON would be escaped, which
+ * prevents log analysis platforms from parsing fields from the event and letting us query on them.
+ * What we want is for the [JsonLogField] to be included as actual JSON on the log output,
+ * unescaped, to get the benefits of structured logging.
+ *
+ * To achieve this, we add the raw JSON string from [JsonLogField] to the MDC, but with this suffix
+ * added to the key. Then, users can configure our [LoggingContextJsonFieldWriter] to strip this
+ * suffix from the key and write the field value as raw JSON in the log output. This only works when
+ * using Logback with `logstash-logback-encoder`, but that's what this library is primarily designed
+ * for anyway.
+ *
+ * We add a suffix to the field key instead of the field value, since the field value may be
+ * external input, which would open us up to malicious actors breaking our logs by passing invalid
+ * JSON strings with the appropriate prefix/suffix.
+ *
+ * This specific suffix was chosen to reduce the chance of clashing with other keys - MDC keys
+ * typically don't have spaces/parentheses.
+ */
+internal const val LOGGING_CONTEXT_JSON_KEY_SUFFIX = " (json)"
+
+/**
+ * We only want to add [LOGGING_CONTEXT_JSON_KEY_SUFFIX] to context field keys if the user has
+ * configured [LoggingContextJsonFieldWriter] with `logstash-logback-encoder`. If this is not the
+ * case, we don't want to add the key suffix, as that will show up in the log output.
+ *
+ * So to check this, we use this global boolean (volatile for thread-safety), defaulting to false.
+ * If `LoggingContextJsonFieldWriter` is configured, its constructor will run when Logback is
+ * initialized, and set this to true. Then we can check this value in [JsonLogField], to decide
+ * whether or not to add the JSON key suffix.
+ *
+ * One obstacle with this approach is that we need Logback to be loaded before checking this field.
+ * The user may construct a [JsonLogField] before loading Logback, in which case
+ * `LoggingContextJsonFieldWriter`'s constructor will not have run yet, and we will omit the key
+ * suffix when it should have been added. So to ensure that Logback is loaded before checking this
+ * field, we call [ensureLoggerImplementationIsLoaded] from an `init` block on
+ * [JsonLogField.Companion], which will run when the class is loaded. We test that this works in the
+ * `LogbackLoggerTest` under `integration-tests/logback`.
+ */
+@Volatile internal var ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS = false
+
+/** See [ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS]. */
+internal fun ensureLoggerImplementationIsLoaded() {
+  // This will initialize the SLF4J logger implementation, if not already initialized
+  Slf4jLoggerFactory.getILoggerFactory()
+}
+
+/**
+ * Some types, namely classes in the Java standard library, are not supported by
+ * `kotlinx.serialization` by default, and so will always fail to serialize. In these cases, we want
+ * to call `toString` on the value before even trying to serialize, as we don't want to pay the cost
+ * of creating an exception just to discard it right after. So we use this function to check if the
+ * field value type should eagerly use `toString`.
+ */
 @PublishedApi
-internal val logFieldJson: Json = Json {
+internal fun fieldValueShouldUseToString(value: Any): Boolean {
+  return when (value) {
+    is Instant,
+    is UUID,
+    is URI,
+    is URL,
+    is BigDecimal -> true
+    else -> false
+  }
+}
+
+/**
+ * SLF4J supports null values in `KeyValuePair`s, and it's up to the logger implementation for how
+ * to handle it. In the case of Logback and `logstash-logback-encoder`, key-value pairs with `null`
+ * values are omitted entirely. But this can be confusing for the user, since they may think the log
+ * field was omitted due to some error. So in this library, we instead use a JSON `null` as the
+ * value for null log fields.
+ */
+@PublishedApi internal const val JSON_NULL_VALUE: String = "null"
+
+@PublishedApi
+@JvmField
+internal val jsonEncoder: Json = Json {
   encodeDefaults = true
   ignoreUnknownKeys = true
 }
+
+// Kept for backwards compatibility. TODO: Remove once users have migrated
+@Suppress("unused")
+@PublishedApi
+internal val logFieldJson: Json
+  get() = jsonEncoder

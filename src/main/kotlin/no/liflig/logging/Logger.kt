@@ -1,55 +1,27 @@
+@file:Suppress(
+    // We want `getLogger()` to be inline, so that `lookupClass()` is called in the caller's scope
+    "NOTHING_TO_INLINE",
+    // We want to use method syntax on the SLF4J Logger, to make it clear what we're calling
+    "UsePropertyAccessSyntax",
+)
+
 package no.liflig.logging
 
+import java.lang.invoke.MethodHandles
+import kotlin.reflect.KClass
 import org.slf4j.Logger as Slf4jLogger
 import org.slf4j.LoggerFactory as Slf4jLoggerFactory
-import org.slf4j.event.Level as Slf4jLevel
-
-/**
- * Returns a [Logger], using the given lambda to automatically give the logger the name of its
- * containing class (or file, if defined at the top level).
- *
- * ### Example
- *
- * ```
- * // In file Example.kt
- * package com.example
- *
- * import no.liflig.logging.getLogger
- *
- * // Gets the name "com.example.Example"
- * private val log = getLogger {}
- *
- * fun example() {
- *   log.info { "Example message" }
- * }
- * ```
- */
-public fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
-  return getLogger(name = getClassNameFromFunction(emptyLambdaToGetName))
-}
-
-/**
- * Returns a [Logger] with the given name.
- *
- * The name should follow fully qualified class name format, like `com.example.Example`, to enable
- * per-package log level filtering.
- *
- * To set the name automatically from the containing class/file, you can use the [getLogger]
- * overload with an empty lambda.
- */
-public fun getLogger(name: String): Logger {
-  val underlyingLogger = Slf4jLoggerFactory.getLogger(name)
-  return Logger(underlyingLogger)
-}
 
 /**
  * A logger provides methods for logging at various log levels ([info], [warn], [error], [debug] and
  * [trace]). It has a logger name, typically the same as the class that the logger is attached to
- * (e.g. `com.example.Example`), which is added to the log so you can see where it originated from.
+ * (e.g. `com.example.Example`). The name is included in the log output, and can be used to
+ * enable/disable log levels for loggers based on their package names, or query for logs from a
+ * specific class.
  *
- * The easiest way to construct a logger is by calling [getLogger] with an empty lambda argument.
- * This automatically gives the logger the name of its containing class (or file, if defined at the
- * top level).
+ * The easiest way to construct a logger is by calling [getLogger] with zero arguments. This
+ * automatically gives the logger the name of its containing class (or file, if defined at the top
+ * level). See the "Implementation" section on [getLogger]'s docstring for how this works.
  *
  * ```
  * // In file Example.kt
@@ -58,7 +30,7 @@ public fun getLogger(name: String): Logger {
  * import no.liflig.logging.getLogger
  *
  * // Gets the name "com.example.Example"
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example() {
  *   log.info { "Example message" }
@@ -66,11 +38,23 @@ public fun getLogger(name: String): Logger {
  * ```
  *
  * Alternatively, you can provide a custom name to `getLogger`. The name should follow fully
- * qualified class name format, like `com.example.Example`, to enable per-package log level
- * filtering.
+ * qualified class name format, like `com.example.Example`, to allow you to enable/disable log
+ * levels based on the package.
  *
  * ```
  * private val log = getLogger(name = "com.example.Example")
+ * ```
+ *
+ * You can also pass a class to `getLogger`, to give the logger the name of that class:
+ * ```
+ * package com.example
+ *
+ * class Example {
+ *   companion object {
+ *     // Gets the name "com.example.Example"
+ *     private val log = getLogger(Example::class)
+ *   }
+ * }
  * ```
  */
 @JvmInline // Inline value class, to avoid redundant indirection when we just wrap an SLF4J logger
@@ -79,7 +63,7 @@ internal constructor(
     @PublishedApi internal val underlyingLogger: Slf4jLogger,
 ) {
   /**
-   * Calls the given lambda to build a log message, and logs it at the INFO log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at [LogLevel.INFO], if enabled.
    *
    * If the log was caused by an exception, you can attach it to the log with the optional [cause]
    * parameter before the lambda.
@@ -90,7 +74,7 @@ internal constructor(
    * ### Example
    *
    * ```
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example(event: Event) {
    *   log.info {
@@ -114,15 +98,21 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
+   *
+   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
+   *   which would drop the log.
    */
-  public inline fun info(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
-    if (underlyingLogger.isInfoEnabled) {
+  public inline fun info(
+      cause: Throwable? = null,
+      crossinline buildLog: LogBuilder.() -> String,
+  ) {
+    if (underlyingLogger.isInfoEnabled()) {
       log(LogLevel.INFO, cause, buildLog)
     }
   }
 
   /**
-   * Calls the given lambda to build a log message, and logs it at the WARN log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at [LogLevel.WARN], if enabled.
    *
    * If the log was caused by an exception, you can attach it to the log with the optional [cause]
    * parameter before the lambda.
@@ -133,7 +123,7 @@ internal constructor(
    * ### Example
    *
    * ```
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example(event: Event) {
    *   try {
@@ -161,15 +151,21 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
+   *
+   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
+   *   which would drop the log.
    */
-  public inline fun warn(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
-    if (underlyingLogger.isWarnEnabled) {
+  public inline fun warn(
+      cause: Throwable? = null,
+      crossinline buildLog: LogBuilder.() -> String,
+  ) {
+    if (underlyingLogger.isWarnEnabled()) {
       log(LogLevel.WARN, cause, buildLog)
     }
   }
 
   /**
-   * Calls the given lambda to build a log message, and logs it at the ERROR log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at [LogLevel.ERROR], if enabled.
    *
    * If the log was caused by an exception, you can attach it to the log with the optional [cause]
    * parameter before the lambda.
@@ -180,7 +176,7 @@ internal constructor(
    * ### Example
    *
    * ```
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example(event: Event) {
    *   try {
@@ -208,15 +204,21 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
+   *
+   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
+   *   which would drop the log.
    */
-  public inline fun error(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
-    if (underlyingLogger.isErrorEnabled) {
+  public inline fun error(
+      cause: Throwable? = null,
+      crossinline buildLog: LogBuilder.() -> String,
+  ) {
+    if (underlyingLogger.isErrorEnabled()) {
       log(LogLevel.ERROR, cause, buildLog)
     }
   }
 
   /**
-   * Calls the given lambda to build a log message, and logs it at the DEBUG log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at [LogLevel.DEBUG], if enabled.
    *
    * If the log was caused by an exception, you can attach it to the log with the optional [cause]
    * parameter before the lambda.
@@ -227,7 +229,7 @@ internal constructor(
    * ### Example
    *
    * ```
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example(event: Event) {
    *   log.debug {
@@ -251,15 +253,21 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
+   *
+   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
+   *   which would drop the log.
    */
-  public inline fun debug(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
-    if (underlyingLogger.isDebugEnabled) {
+  public inline fun debug(
+      cause: Throwable? = null,
+      crossinline buildLog: LogBuilder.() -> String,
+  ) {
+    if (underlyingLogger.isDebugEnabled()) {
       log(LogLevel.DEBUG, cause, buildLog)
     }
   }
 
   /**
-   * Calls the given lambda to build a log message, and logs it at the TRACE log level, if enabled.
+   * Calls the given lambda to build a log message, and logs it at the [LogLevel.TRACE], if enabled.
    *
    * If the log was caused by an exception, you can attach it to the log with the optional [cause]
    * parameter before the lambda.
@@ -270,7 +278,7 @@ internal constructor(
    * ### Example
    *
    * ```
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example(event: Event) {
    *   log.trace {
@@ -294,9 +302,15 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
+   *
+   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
+   *   which would drop the log.
    */
-  public inline fun trace(cause: Throwable? = null, buildLog: LogBuilder.() -> String) {
-    if (underlyingLogger.isTraceEnabled) {
+  public inline fun trace(
+      cause: Throwable? = null,
+      crossinline buildLog: LogBuilder.() -> String,
+  ) {
+    if (underlyingLogger.isTraceEnabled()) {
       log(LogLevel.TRACE, cause, buildLog)
     }
   }
@@ -315,7 +329,7 @@ internal constructor(
    * ### Example
    *
    * ```
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example(event: Event) {
    *   try {
@@ -345,19 +359,26 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
+   *
+   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
+   *   which would drop the log.
    */
   public inline fun at(
       level: LogLevel,
       cause: Throwable? = null,
-      buildLog: LogBuilder.() -> String
+      crossinline buildLog: LogBuilder.() -> String,
   ) {
-    if (underlyingLogger.isEnabledForLevel(level.slf4jLevel)) {
+    if (isEnabledFor(level)) {
       log(level, cause, buildLog)
     }
   }
 
   @PublishedApi
-  internal inline fun log(level: LogLevel, cause: Throwable?, buildLog: LogBuilder.() -> String) {
+  internal inline fun log(
+      level: LogLevel,
+      cause: Throwable?,
+      crossinline buildLog: LogBuilder.() -> String,
+  ) {
     val builder = LogBuilder(createLogEvent(level, cause, underlyingLogger))
     val message = builder.buildLog()
     if (cause != null) {
@@ -367,210 +388,201 @@ internal constructor(
 
     builder.logEvent.log(message, underlyingLogger)
   }
-}
 
-public enum class LogLevel(
-    @PublishedApi internal val slf4jLevel: Slf4jLevel,
-) {
-  INFO(Slf4jLevel.INFO),
-  WARN(Slf4jLevel.WARN),
-  ERROR(Slf4jLevel.ERROR),
-  DEBUG(Slf4jLevel.DEBUG),
-  TRACE(Slf4jLevel.TRACE),
+  /**
+   * Returns true if [LogLevel.ERROR] is enabled for this logger.
+   *
+   * When using Logback, you can enable/disable log levels for loggers based on their package names
+   * (see
+   * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
+   */
+  public val isErrorEnabled: Boolean
+    inline get() = underlyingLogger.isErrorEnabled()
+
+  /**
+   * Returns true if [LogLevel.WARN] is enabled for this logger.
+   *
+   * When using Logback, you can enable/disable log levels for loggers based on their package names
+   * (see
+   * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
+   */
+  public val isWarnEnabled: Boolean
+    inline get() = underlyingLogger.isWarnEnabled()
+
+  /**
+   * Returns true if [LogLevel.INFO] is enabled for this logger.
+   *
+   * When using Logback, you can enable/disable log levels for loggers based on their package names
+   * (see
+   * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
+   */
+  public val isInfoEnabled: Boolean
+    inline get() = underlyingLogger.isInfoEnabled()
+
+  /**
+   * Returns true if [LogLevel.DEBUG] is enabled for this logger.
+   *
+   * When using Logback, you can enable/disable log levels for loggers based on their package names
+   * (see
+   * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
+   */
+  public val isDebugEnabled: Boolean
+    inline get() = underlyingLogger.isDebugEnabled()
+
+  /**
+   * Returns true if [LogLevel.TRACE] is enabled for this logger.
+   *
+   * When using Logback, you can enable/disable log levels for loggers based on their package names
+   * (see
+   * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
+   */
+  public val isTraceEnabled: Boolean
+    inline get() = underlyingLogger.isTraceEnabled()
+
+  /**
+   * Returns true if the given log level is enabled for this logger.
+   *
+   * When using Logback, you can enable/disable log levels for loggers based on their package names
+   * (see
+   * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
+   */
+  public fun isEnabledFor(level: LogLevel): Boolean {
+    return level.match(
+        ERROR = { underlyingLogger.isErrorEnabled() },
+        WARN = { underlyingLogger.isWarnEnabled() },
+        INFO = { underlyingLogger.isInfoEnabled() },
+        DEBUG = { underlyingLogger.isDebugEnabled() },
+        TRACE = { underlyingLogger.isTraceEnabled() },
+    )
+  }
 }
 
 /**
- * Implementation based on the
- * [KLoggerNameResolver from kotlin-logging](https://github.com/oshai/kotlin-logging/blob/e9c6ec570cd503c626fca5878efcf1291d4125b7/src/jvmMain/kotlin/mu/internal/KLoggerNameResolver.kt#L9-L19),
- * with minor changes.
+ * Returns a [Logger], with its name inferred from the class in which it's called (or file, if
+ * defined at the top level).
  *
- * ```text
- * Copyright (c) 2016-2018 Ohad Shai
- * This software is licensed under the Apache 2 license, quoted below.
+ * The logger name is included in the log output, and can be used to enable/disable log levels for
+ * loggers based on their package names, or query for logs from a specific class.
  *
- *                                  Apache License
- *                            Version 2.0, January 2004
- *                         http://www.apache.org/licenses/
+ * ### Example
  *
- *    TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+ * ```
+ * // In file Example.kt
+ * package com.example
  *
- *    1. Definitions.
+ * import no.liflig.logging.getLogger
  *
- *       "License" shall mean the terms and conditions for use, reproduction,
- *       and distribution as defined by Sections 1 through 9 of this document.
+ * // Gets the name "com.example.Example"
+ * private val log = getLogger()
  *
- *       "Licensor" shall mean the copyright owner or entity authorized by
- *       the copyright owner that is granting the License.
+ * fun example() {
+ *   log.info { "Example message" }
+ * }
+ * ```
  *
- *       "Legal Entity" shall mean the union of the acting entity and all
- *       other entities that control, are controlled by, or are under common
- *       control with that entity. For the purposes of this definition,
- *       "control" means (i) the power, direct or indirect, to cause the
- *       direction or management of such entity, whether by contract or
- *       otherwise, or (ii) ownership of fifty percent (50%) or more of the
- *       outstanding shares, or (iii) beneficial ownership of such entity.
+ * ### Implementation
  *
- *       "You" (or "Your") shall mean an individual or Legal Entity
- *       exercising permissions granted by this License.
+ * This calls `MethodHandles.lookup().lookupClass()`, which returns the calling class. Since this
+ * function is inline, that will actually return the class that called `getLogger`, so we can use it
+ * to get the name of the caller. When called at file scope, the calling class will be the synthetic
+ * `Kt` class that Kotlin generates for the file, so we can use the file name in that case.
  *
- *       "Source" form shall mean the preferred form for making modifications,
- *       including but not limited to software source code, documentation
- *       source, and configuration files.
+ * This is the pattern that
+ * [the SLF4J docs recommends](https://www.slf4j.org/faq.html#declaration_pattern) for instantiating
+ * loggers in a generic manner.
+ */
+public inline fun getLogger(): Logger {
+  return getLogger(javaClass = MethodHandles.lookup().lookupClass())
+}
+
+@PublishedApi
+internal fun getLogger(javaClass: Class<*>): Logger {
+  val name = normalizeLoggerName(javaClass.name)
+  return Logger(Slf4jLoggerFactory.getLogger(name))
+}
+
+@Deprecated(
+    "Replaced by zero-argument getLogger() overload. You can search-and-replace 'getLogger {}' -> 'getLogger()' to update",
+)
+public fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
+  val name = normalizeLoggerName(emptyLambdaToGetName::class.qualifiedName)
+  return Logger(Slf4jLoggerFactory.getLogger(name))
+}
+
+/**
+ * Returns a [Logger] with the name of the given class.
  *
- *       "Object" form shall mean any form resulting from mechanical
- *       transformation or translation of a Source form, including but
- *       not limited to compiled object code, generated documentation,
- *       and conversions to other media types.
+ * The logger name is included in the log output, and can be used to enable/disable log levels for
+ * loggers based on their package names, or query for logs from a specific class.
  *
- *       "Work" shall mean the work of authorship, whether in Source or
- *       Object form, made available under the License, as indicated by a
- *       copyright notice that is included in or attached to the work
- *       (an example is provided in the Appendix below).
+ * In most cases, you should prefer the zero-parameter `getLogger()` overload, to automatically get
+ * the name of the containing class (or file). But if you want more control over which class to use
+ * for the logger name, you can use this overload.
  *
- *       "Derivative Works" shall mean any work, whether in Source or Object
- *       form, that is based on (or derived from) the Work and for which the
- *       editorial revisions, annotations, elaborations, or other modifications
- *       represent, as a whole, an original work of authorship. For the purposes
- *       of this License, Derivative Works shall not include works that remain
- *       separable from, or merely link (or bind by name) to the interfaces of,
- *       the Work and Derivative Works thereof.
+ * ### Example
  *
- *       "Contribution" shall mean any work of authorship, including
- *       the original version of the Work and any modifications or additions
- *       to that Work or Derivative Works thereof, that is intentionally
- *       submitted to Licensor for inclusion in the Work by the copyright owner
- *       or by an individual or Legal Entity authorized to submit on behalf of
- *       the copyright owner. For the purposes of this definition, "submitted"
- *       means any form of electronic, verbal, or written communication sent
- *       to the Licensor or its representatives, including but not limited to
- *       communication on electronic mailing lists, source code control systems,
- *       and issue tracking systems that are managed by, or on behalf of, the
- *       Licensor for the purpose of discussing and improving the Work, but
- *       excluding communication that is conspicuously marked or otherwise
- *       designated in writing by the copyright owner as "Not a Contribution."
+ * ```
+ * package com.example
  *
- *       "Contributor" shall mean Licensor and any individual or Legal Entity
- *       on behalf of whom a Contribution has been received by Licensor and
- *       subsequently incorporated within the Work.
+ * import no.liflig.logging.getLogger
  *
- *    2. Grant of Copyright License. Subject to the terms and conditions of
- *       this License, each Contributor hereby grants to You a perpetual,
- *       worldwide, non-exclusive, no-charge, royalty-free, irrevocable
- *       copyright license to reproduce, prepare Derivative Works of,
- *       publicly display, publicly perform, sublicense, and distribute the
- *       Work and such Derivative Works in Source or Object form.
+ * class Example {
+ *   companion object {
+ *     // Gets the name "com.example.Example"
+ *     private val log = getLogger(Example::class)
+ *   }
  *
- *    3. Grant of Patent License. Subject to the terms and conditions of
- *       this License, each Contributor hereby grants to You a perpetual,
- *       worldwide, non-exclusive, no-charge, royalty-free, irrevocable
- *       (except as stated in this section) patent license to make, have made,
- *       use, offer to sell, sell, import, and otherwise transfer the Work,
- *       where such license applies only to those patent claims licensable
- *       by such Contributor that are necessarily infringed by their
- *       Contribution(s) alone or by combination of their Contribution(s)
- *       with the Work to which such Contribution(s) was submitted. If You
- *       institute patent litigation against any entity (including a
- *       cross-claim or counterclaim in a lawsuit) alleging that the Work
- *       or a Contribution incorporated within the Work constitutes direct
- *       or contributory patent infringement, then any patent licenses
- *       granted to You under this License for that Work shall terminate
- *       as of the date such litigation is filed.
- *
- *    4. Redistribution. You may reproduce and distribute copies of the
- *       Work or Derivative Works thereof in any medium, with or without
- *       modifications, and in Source or Object form, provided that You
- *       meet the following conditions:
- *
- *       (a) You must give any other recipients of the Work or
- *           Derivative Works a copy of this License; and
- *
- *       (b) You must cause any modified files to carry prominent notices
- *           stating that You changed the files; and
- *
- *       (c) You must retain, in the Source form of any Derivative Works
- *           that You distribute, all copyright, patent, trademark, and
- *           attribution notices from the Source form of the Work,
- *           excluding those notices that do not pertain to any part of
- *           the Derivative Works; and
- *
- *       (d) If the Work includes a "NOTICE" text file as part of its
- *           distribution, then any Derivative Works that You distribute must
- *           include a readable copy of the attribution notices contained
- *           within such NOTICE file, excluding those notices that do not
- *           pertain to any part of the Derivative Works, in at least one
- *           of the following places: within a NOTICE text file distributed
- *           as part of the Derivative Works; within the Source form or
- *           documentation, if provided along with the Derivative Works; or,
- *           within a display generated by the Derivative Works, if and
- *           wherever such third-party notices normally appear. The contents
- *           of the NOTICE file are for informational purposes only and
- *           do not modify the License. You may add Your own attribution
- *           notices within Derivative Works that You distribute, alongside
- *           or as an addendum to the NOTICE text from the Work, provided
- *           that such additional attribution notices cannot be construed
- *           as modifying the License.
- *
- *       You may add Your own copyright statement to Your modifications and
- *       may provide additional or different license terms and conditions
- *       for use, reproduction, or distribution of Your modifications, or
- *       for any such Derivative Works as a whole, provided Your use,
- *       reproduction, and distribution of the Work otherwise complies with
- *       the conditions stated in this License.
- *
- *    5. Submission of Contributions. Unless You explicitly state otherwise,
- *       any Contribution intentionally submitted for inclusion in the Work
- *       by You to the Licensor shall be under the terms and conditions of
- *       this License, without any additional terms or conditions.
- *       Notwithstanding the above, nothing herein shall supersede or modify
- *       the terms of any separate license agreement you may have executed
- *       with Licensor regarding such Contributions.
- *
- *    6. Trademarks. This License does not grant permission to use the trade
- *       names, trademarks, service marks, or product names of the Licensor,
- *       except as required for reasonable and customary use in describing the
- *       origin of the Work and reproducing the content of the NOTICE file.
- *
- *    7. Disclaimer of Warranty. Unless required by applicable law or
- *       agreed to in writing, Licensor provides the Work (and each
- *       Contributor provides its Contributions) on an "AS IS" BASIS,
- *       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- *       implied, including, without limitation, any warranties or conditions
- *       of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
- *       PARTICULAR PURPOSE. You are solely responsible for determining the
- *       appropriateness of using or redistributing the Work and assume any
- *       risks associated with Your exercise of permissions under this License.
- *
- *    8. Limitation of Liability. In no event and under no legal theory,
- *       whether in tort (including negligence), contract, or otherwise,
- *       unless required by applicable law (such as deliberate and grossly
- *       negligent acts) or agreed to in writing, shall any Contributor be
- *       liable to You for damages, including any direct, indirect, special,
- *       incidental, or consequential damages of any character arising as a
- *       result of this License or out of the use or inability to use the
- *       Work (including but not limited to damages for loss of goodwill,
- *       work stoppage, computer failure or malfunction, or any and all
- *       other commercial damages or losses), even if such Contributor
- *       has been advised of the possibility of such damages.
- *
- *    9. Accepting Warranty or Additional Liability. While redistributing
- *       the Work or Derivative Works thereof, You may choose to offer,
- *       and charge a fee for, acceptance of support, warranty, indemnity,
- *       or other liability obligations and/or rights consistent with this
- *       License. However, in accepting such obligations, You may act only
- *       on Your own behalf and on Your sole responsibility, not on behalf
- *       of any other Contributor, and only if You agree to indemnify,
- *       defend, and hold each Contributor harmless for any liability
- *       incurred by, or claims asserted against, such Contributor by reason
- *       of your accepting any such warranty or additional liability.
- *
- *    END OF TERMS AND CONDITIONS
+ *   fun example() {
+ *     log.info { "Example message" }
+ *   }
+ * }
  * ```
  */
-internal fun getClassNameFromFunction(function: () -> Unit): String {
-  val name = function.javaClass.name
+public fun getLogger(forClass: KClass<*>): Logger {
+  val name = normalizeLoggerName(forClass.qualifiedName)
+  return Logger(Slf4jLoggerFactory.getLogger(name))
+}
+
+/**
+ * Returns a [Logger] with the given name.
+ *
+ * The logger name is included in the log output, and can be used to enable/disable log levels for
+ * loggers based on their package names, or query for logs from a specific class. Because of this,
+ * the name given here should follow fully qualified class name format, like `com.example.Example`.
+ *
+ * To set the name automatically from the containing class/file, you can use the zero-parameter
+ * `getLogger()` overload instead.
+ *
+ * ### Example
+ *
+ * ```
+ * private val log = getLogger(name = "com.example.Example")
+ * ```
+ *
+ * @param name Should follow fully qualified class name format, like `com.example.Example`.
+ */
+public fun getLogger(name: String): Logger {
+  return Logger(Slf4jLoggerFactory.getLogger(name))
+}
+
+/**
+ * Removes any `Kt` suffix from the given class name (which Kotlin adds to the classes that are
+ * generated for the top-level of files).
+ *
+ * Implementation based on the
+ * [KLoggerNameResolver from kotlin-logging](https://github.com/oshai/kotlin-logging/blob/e9c6ec570cd503c626fca5878efcf1291d4125b7/src/jvmMain/kotlin/mu/internal/KLoggerNameResolver.kt#L9-L19),
+ * with minor changes. Licensed under
+ * [Apache 2.0](https://github.com/oshai/kotlin-logging/blob/e9c6ec570cd503c626fca5878efcf1291d4125b7/LICENSE).
+ */
+private fun normalizeLoggerName(name: String?): String {
   return when {
+    // We may get a null name from `KClass.qualifiedName` in the `getLogger(forClass: KClass<*>)`
+    // overload. Although this should be rare (as it would only happen if the user somehow passed a
+    // synthetic class), we want to gracefully handle this, using "Logger" as a generic fallback.
+    name == null -> "Logger"
     name.contains("Kt$") -> name.substringBefore("Kt$")
     name.contains("$") -> name.substringBefore("$")
+    name.endsWith("Kt") -> name.removeSuffix("Kt")
     else -> name
   }
 }

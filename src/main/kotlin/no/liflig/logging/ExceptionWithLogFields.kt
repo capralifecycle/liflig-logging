@@ -5,10 +5,12 @@ package no.liflig.logging
  * `cause` exception to one of the methods on [Logger], it will check if the given exception is an
  * instance of this class, and if it is, these fields will be added to the log.
  *
+ * Use the [field]/[rawJsonField] functions to construct log fields.
+ *
  * The exception also includes any log fields from [withLoggingContext], from the scope in which the
  * exception is constructed. This way, we don't lose any logging context if the exception escapes
  * the context it was thrown from. If you don't want this behavior, you can create a custom
- * exception and implement the [WithLogFields] interface.
+ * exception and implement the [HasLogFields] interface.
  *
  * This class is useful when you are throwing an exception from somewhere down in the stack, but do
  * logging further up the stack, and you have structured data that you want to attach to the
@@ -22,7 +24,7 @@ package no.liflig.logging
  * import no.liflig.logging.field
  * import no.liflig.logging.getLogger
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example(event: OrderUpdateEvent) {
  *   try {
@@ -66,7 +68,7 @@ package no.liflig.logging
  *       exception
  * - `(message: String?, vararg logFields: LogField, cause: Throwable?)`
  *     - Takes log fields as varargs, so you don't have to wrap them in a list
- *     - To pass `cause`, use a named parameter
+ *     - To pass `cause`, use a named argument
  * - `(logFields: List<LogField>, cause: Throwable?)`
  *     - Defaults `message` to `cause.message`. This lets you:
  *         - Wrap a cause exception with log fields, and use the cause exception's message
@@ -77,12 +79,18 @@ package no.liflig.logging
  *       override `message` while also passing log fields as varargs
  */
 public open class ExceptionWithLogFields(
+    /** The exception message. */
     override val message: String?,
     logFields: List<LogField> = emptyList(),
+    /**
+     * The cause of the exception. If you're throwing this exception after catching another, you
+     * should include the original exception here.
+     */
     override val cause: Throwable? = null,
-) : RuntimeException(), WithLogFields {
+) : RuntimeException(), HasLogFields {
   // Final, since we want to ensure that fields from logging context are included
-  final override val logFields: List<LogField> = combineFieldsWithLoggingContext(logFields)
+  final override val logFields: List<LogField> =
+      LoggingContext.combineFieldListWithContextFields(logFields)
 
   public constructor(
       message: String?,
@@ -101,31 +109,12 @@ public open class ExceptionWithLogFields(
   ) : this(message = cause?.message, logFields.asList(), cause)
 }
 
-/** Combines the given log fields with any fields from [withLoggingContext]. */
-private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<LogField> {
-  val contextFields = LoggingContext.getFieldMap()
-
-  // If logging context is empty, we just use the given field list, to avoid allocating an
-  // additional list
-  if (contextFields.isNullOrEmpty()) {
-    return logFields
-  }
-
-  val combinedFields =
-      ArrayList<LogField>(
-          // Initialize capacity for both exception fields and context fields
-          logFields.size + LoggingContext.getNonNullFieldCount(contextFields),
-      )
-  // Add exception log fields first, so they show first in the log output
-  combinedFields.addAll(logFields)
-  LoggingContext.mapFieldMapToList(contextFields, target = combinedFields)
-  return combinedFields
-}
-
 /**
  * Interface to allow you to attach [log fields][LogField] to exceptions. When passing a `cause`
  * exception to one of the methods on [Logger], it will check if the given exception implements this
  * interface, and if it does, these fields will be added to the log.
+ *
+ * Use the [field]/[rawJsonField] functions to construct log fields.
  *
  * This is useful when you are throwing an exception from somewhere down in the stack, but do
  * logging further up the stack, and you have structured data that you want to attach to the
@@ -138,11 +127,11 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  * ### Example
  *
  * ```
- * import no.liflig.logging.WithLogFields
+ * import no.liflig.logging.HasLogFields
  * import no.liflig.logging.field
  * import no.liflig.logging.getLogger
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example(order: Order) {
  *   try {
@@ -161,7 +150,7 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  * class OrderUpdateException(
  *     override val message: String,
  *     order: Order,
- * ) : RuntimeException(), WithLogFields {
+ * ) : RuntimeException(), HasLogFields {
  *   override val logFields = listOf(field("order", order))
  * }
  * ```
@@ -177,7 +166,14 @@ private fun combineFieldsWithLoggingContext(logFields: List<LogField>): List<Log
  * }
  * ```
  */
-public interface WithLogFields {
+public interface HasLogFields {
   /** Will be attached to the log when passed through `cause` to one of [Logger]'s methods. */
   public val logFields: List<LogField>
 }
+
+// Kept for backwards compatibility. TODO: Remove once users have migrated
+@Deprecated(
+    "Renamed to 'HasLogFields'",
+    ReplaceWith("HasLogFields", "no.liflig.logging.HasLogFields"),
+)
+public typealias WithLogFields = HasLogFields

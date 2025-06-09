@@ -4,21 +4,42 @@ import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
-import org.slf4j.LoggerFactory as Slf4jLoggerFactory
 import org.slf4j.MDC
 
 /**
  * Adds the given [log fields][LogField] to every log made by a [Logger] in the context of the given
- * [block].
+ * [block]. Use the [field]/[rawJsonField] functions to construct log fields.
  *
  * An example of when this is useful is when processing an event, and you want the event to be
  * attached to every log while processing it. Instead of manually attaching the event to each log,
  * you can wrap the event processing in `withLoggingContext` with the event as a log field, and then
  * all logs inside that context will include the event.
  *
- * The implementation uses [MDC] from SLF4J, which only supports String values by default. To encode
- * object values as actual JSON (not escaped strings), you can use [LoggingContextJsonFieldWriter]
- * with Logback.
+ * ### Field value encoding with SLF4J
+ *
+ * The implementation uses `MDC` from SLF4J, which only supports String values by default. To encode
+ * object values as actual JSON (not escaped strings), you can add
+ * `no.liflig.logging.LoggingContextJsonFieldWriter` as an `mdcEntryWriter` for
+ * [`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder), like this:
+ * ```xml
+ * <!-- Example Logback config (in src/main/resources/logback.xml) -->
+ * <?xml version="1.0" encoding="UTF-8"?>
+ * <configuration>
+ *   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+ *     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+ *       <!-- Writes object values from logging context as actual JSON (not escaped) -->
+ *       <mdcEntryWriter class="no.liflig.logging.LoggingContextJsonFieldWriter"/>
+ *     </encoder>
+ *   </appender>
+ *
+ *   <root level="INFO">
+ *     <appender-ref ref="STDOUT"/>
+ *   </root>
+ * </configuration
+ * ```
+ *
+ * This requires that you have added `ch.qos.logback:logback-classic` and
+ * `net.logstash.logback:logstash-logback-encoder` as dependencies.
  *
  * ### Note on coroutines
  *
@@ -33,7 +54,7 @@ import org.slf4j.MDC
  * import no.liflig.logging.getLogger
  * import no.liflig.logging.withLoggingContext
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example(event: Event) {
  *   withLoggingContext(field("event", event)) {
@@ -44,8 +65,8 @@ import org.slf4j.MDC
  * }
  * ```
  *
- * If you have configured [LoggingContextJsonFieldWriter], the field from `withLoggingContext` will
- * then be attached to every log as follows:
+ * If you have configured `no.liflig.logging.LoggingContextJsonFieldWriter`, the field from
+ * `withLoggingContext` will then be attached to every log as follows:
  * ```json
  * { "message": "Started processing event", "event": { ... } }
  * { "message": "Finished processing event", "event": { ... } }
@@ -60,20 +81,38 @@ public inline fun <ReturnT> withLoggingContext(
 
 /**
  * Adds the given [log fields][LogField] to every log made by a [Logger] in the context of the given
- * [block].
+ * [block]. Use the [field]/[rawJsonField] functions to construct log fields.
  *
  * An example of when this is useful is when processing an event, and you want the event to be
  * attached to every log while processing it. Instead of manually attaching the event to each log,
  * you can wrap the event processing in `withLoggingContext` with the event as a log field, and then
  * all logs inside that context will include the event.
  *
- * The implementation uses [MDC] from SLF4J, which only supports String values by default. To encode
- * object values as actual JSON (not escaped strings), you can configure
- * [LoggingContextJsonFieldWriter].
+ * ### Field value encoding with SLF4J
  *
- * This overload of the function takes a list instead of varargs, for when you already have a list
- * of log fields available. This can be used together with [getLoggingContext] to pass context
- * fields between threads ([see example][getLoggingContext]).
+ * The implementation uses `MDC` from SLF4J, which only supports String values by default. To encode
+ * object values as actual JSON (not escaped strings), you can add
+ * `no.liflig.logging.LoggingContextJsonFieldWriter` as an `mdcEntryWriter` for
+ * [`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder), like this:
+ * ```xml
+ * <!-- Example Logback config (in src/main/resources/logback.xml) -->
+ * <?xml version="1.0" encoding="UTF-8"?>
+ * <configuration>
+ *   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+ *     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+ *       <!-- Writes object values from logging context as actual JSON (not escaped) -->
+ *       <mdcEntryWriter class="no.liflig.logging.LoggingContextJsonFieldWriter"/>
+ *     </encoder>
+ *   </appender>
+ *
+ *   <root level="INFO">
+ *     <appender-ref ref="STDOUT"/>
+ *   </root>
+ * </configuration
+ * ```
+ *
+ * This requires that you have added `ch.qos.logback:logback-classic` and
+ * `net.logstash.logback:logstash-logback-encoder` as dependencies.
  *
  * ### Note on coroutines
  *
@@ -88,7 +127,7 @@ public inline fun <ReturnT> withLoggingContext(
  * import no.liflig.logging.getLogger
  * import no.liflig.logging.withLoggingContext
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example(event: Event) {
  *   withLoggingContext(field("event", event)) {
@@ -99,11 +138,11 @@ public inline fun <ReturnT> withLoggingContext(
  * }
  * ```
  *
- * If you have configured [LoggingContextJsonFieldWriter], the field from `withLoggingContext` will
- * then be attached to every log as follows:
+ * If you have configured `no.liflig.logging.LoggingContextJsonFieldWriter`, the field from
+ * `withLoggingContext` will then be attached to every log as follows:
  * ```json
- * { "message": "Started processing event", "event": { /* ... */  } }
- * { "message": "Finished processing event", "event": { /* ... */  } }
+ * { "message": "Started processing event", "event": { ... } }
+ * { "message": "Finished processing event", "event": { ... } }
  * ```
  */
 public inline fun <ReturnT> withLoggingContext(
@@ -133,7 +172,6 @@ internal inline fun <ReturnT> withLoggingContextInternal(
     block: () -> ReturnT
 ): ReturnT {
   val overwrittenFields = LoggingContext.addFields(logFields)
-
   try {
     return block()
   } finally {
@@ -146,8 +184,9 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  * [withLoggingContext]). This can be used to pass logging context between threads (see example
  * below).
  *
- * If you spawn threads using an [ExecutorService], you may instead use [inheritLoggingContext],
- * which does the logging context copying from parent to child for you.
+ * If you spawn threads using a `java.util.concurrent.ExecutorService`, you may instead use the
+ * `no.liflig.logging.inheritLoggingContext` extension function, which does the logging context
+ * copying from parent to child for you.
  *
  * ### Example
  *
@@ -161,7 +200,7 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  * import no.liflig.logging.withLoggingContext
  * import kotlin.concurrent.thread
  *
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * class OrderService(
  *     private val orderRepository: OrderRepository,
@@ -202,62 +241,6 @@ public fun getLoggingContext(): List<LogField> {
 }
 
 /**
- * Wraps an [ExecutorService] in a new implementation that copies logging context fields (from
- * [withLoggingContext]) from the parent thread to child threads when spawning new tasks. This is
- * useful when you use an `ExecutorService` in the scope of a logging context, and you want the
- * fields from the logging context to also be included on the logs in the child tasks.
- *
- * ### Example
- *
- * Scenario: We store an updated order in a database, and then want to asynchronously update
- * statistics for the order.
- *
- * ```
- * import no.liflig.logging.field
- * import no.liflig.logging.getLogger
- * import no.liflig.logging.inheritLoggingContext
- * import no.liflig.logging.withLoggingContext
- * import java.util.concurrent.Executors
- *
- * private val log = getLogger {}
- *
- * class OrderService(
- *     private val orderRepository: OrderRepository,
- *     private val statisticsService: StatisticsService,
- * ) {
- *   // Call inheritLoggingContext on the executor
- *   private val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
- *
- *   fun updateOrder(order: Order) {
- *     withLoggingContext(field("order", order)) {
- *       orderRepository.update(order)
- *       updateStatistics(order)
- *     }
- *   }
- *
- *   // In this scenario, we don't want updateStatistics to block updateOrder, so we use an
- *   // ExecutorService to spawn a thread.
- *   //
- *   // But we want to log if it fails, and include the logging context from the parent thread.
- *   // This is where inheritLoggingContext comes in.
- *   private fun updateStatistics(order: Order) {
- *     executor.execute {
- *       try {
- *         statisticsService.orderUpdated(order)
- *       } catch (e: Exception) {
- *         // This log will get the "order" field from the parent logging context
- *         log.error(e) { "Failed to update order statistics" }
- *       }
- *     }
- *   }
- * }
- * ```
- */
-public fun ExecutorService.inheritLoggingContext(): ExecutorService {
-  return ExecutorServiceWithInheritedLoggingContext(this)
-}
-
-/**
  * Thread-local log fields that will be included on every log within a given context.
  *
  * This object encapsulates SLF4J's [MDC] (Mapped Diagnostic Context), allowing the rest of our code
@@ -266,11 +249,13 @@ public fun ExecutorService.inheritLoggingContext(): ExecutorService {
 @PublishedApi
 internal object LoggingContext {
   @PublishedApi
+  @JvmStatic
   internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields {
     var overwrittenFields = OverwrittenContextFields(null)
 
     for (index in fields.indices) {
       val field = fields[index]
+      val keyForLoggingContext = field.getKeyForLoggingContext()
 
       // Skip duplicate keys in the field array
       if (isDuplicateField(field, index, fields)) {
@@ -292,49 +277,51 @@ internal object LoggingContext {
            * want to overwrite "key" with "key (json)" (adding [LOGGING_CONTEXT_JSON_KEY_SUFFIX] to
            * identify the JSON value). But since "key (json)" does not match "key", calling
            * `MDC.put` below will not overwrite the previous field, so we have to manually remove it
-           * here. The previous field will then be restored by [removeFields] after the context
-           * exits.
+           * here. The previous field will then be restored by [LoggingContext.removeFields] after
+           * the context exits.
            */
-          if (field.key != field.keyForLoggingContext) {
+          if (field.key != keyForLoggingContext) {
             MDC.remove(field.key)
           }
         }
       }
 
       /**
-       * [JsonLogField] adds a suffix to [LogField.keyForLoggingContext], i.e. it will be different
-       * from [LogField.key]. In this case, we want to check existing context field values for both
-       * [LogField.key] _and_ [LogField.keyForLoggingContext].
+       * [JsonLogField] adds a suffix to `keyForLoggingContext`, i.e. it will be different from
+       * [LogField.key]. In this case, we want to check existing context field values for both `key`
+       * _and_ `keyForLoggingContext`.
        */
-      if (field.key != field.keyForLoggingContext && existingValue == null) {
-        existingValue = MDC.get(field.keyForLoggingContext)
+      if (field.key != keyForLoggingContext && existingValue == null) {
+        existingValue = MDC.get(keyForLoggingContext)
         when (existingValue) {
           null -> {}
           field.value -> continue
           else -> {
             overwrittenFields =
-                overwrittenFields.set(index, field.keyForLoggingContext, existingValue, fields.size)
+                overwrittenFields.set(index, keyForLoggingContext, existingValue, fields.size)
           }
         }
       }
 
-      MDC.put(field.keyForLoggingContext, field.value)
+      MDC.put(keyForLoggingContext, field.value)
     }
 
     return overwrittenFields
   }
 
   /**
-   * Takes the array of overwritten field values returned by [addFields], to restore the previous
-   * context values after the current context exits.
+   * Takes the array of overwritten field values returned by [LoggingContext.addFields], to restore
+   * the previous context values after the current context exits.
    */
   @PublishedApi
+  @JvmStatic
   internal fun removeFields(
       fields: Array<out LogField>,
       overwrittenFields: OverwrittenContextFields
   ) {
     for (index in fields.indices) {
       val field = fields[index]
+      val keyForLoggingContext = field.getKeyForLoggingContext()
 
       // Skip duplicate keys, like we do in addFields
       if (isDuplicateField(field, index, fields)) {
@@ -347,17 +334,18 @@ internal object LoggingContext {
         /**
          * If the overwritten key matched the current key in the logging context, then we don't want
          * to call `MDC.remove` below (these may not always match for [JsonLogField] - see docstring
-         * over `MDC.remove` in [addFields]).
+         * over `MDC.remove` in [LoggingContext.addFields]).
          */
-        if (overwrittenKey == field.keyForLoggingContext) {
+        if (overwrittenKey == keyForLoggingContext) {
           continue
         }
       }
 
-      MDC.remove(field.keyForLoggingContext)
+      MDC.remove(keyForLoggingContext)
     }
   }
 
+  @JvmStatic
   private fun isDuplicateField(field: LogField, index: Int, fields: Array<out LogField>): Boolean {
     for (previousFieldIndex in 0 until index) {
       if (fields[previousFieldIndex].key == field.key) {
@@ -367,15 +355,13 @@ internal object LoggingContext {
     return false
   }
 
-  internal fun hasKey(key: String): Boolean {
-    val existingValue: String? = MDC.get(key)
-    return existingValue != null
+  @JvmStatic
+  internal fun contains(field: LogField): Boolean {
+    val existingValue: String? = MDC.get(field.getKeyForLoggingContext())
+    return existingValue == field.value
   }
 
-  internal fun getFieldMap(): Map<String, String?>? {
-    return MDC.getCopyOfContextMap()
-  }
-
+  @JvmStatic
   internal fun getFieldList(): List<LogField> {
     val fieldMap = getFieldMap()
     if (fieldMap.isNullOrEmpty()) {
@@ -387,7 +373,31 @@ internal object LoggingContext {
     return fieldList
   }
 
-  internal fun mapFieldMapToList(fieldMap: Map<String, String?>, target: ArrayList<LogField>) {
+  @JvmStatic
+  internal fun combineFieldListWithContextFields(fields: List<LogField>): List<LogField> {
+    val contextFields = getFieldMap()
+
+    // If logging context is empty, we just use the given field list, to avoid allocating an
+    // additional list
+    if (contextFields.isNullOrEmpty()) {
+      return fields
+    }
+
+    val combinedFields = ArrayList<LogField>(fields.size + getNonNullFieldCount(contextFields))
+
+    // Add exception log fields first, so they show first in the log output
+    combinedFields.addAll(fields)
+    mapFieldMapToList(contextFields, target = combinedFields)
+    return combinedFields
+  }
+
+  @JvmStatic
+  internal fun getFieldMap(): Map<String, String?>? {
+    return MDC.getCopyOfContextMap()
+  }
+
+  @JvmStatic
+  private fun mapFieldMapToList(fieldMap: Map<String, String?>, target: ArrayList<LogField>) {
     for ((key, value) in fieldMap) {
       if (value == null) {
         continue
@@ -397,31 +407,9 @@ internal object LoggingContext {
     }
   }
 
-  internal fun getNonNullFieldCount(fieldMap: Map<String, String?>): Int {
+  @JvmStatic
+  private fun getNonNullFieldCount(fieldMap: Map<String, String?>): Int {
     return fieldMap.count { field -> field.value != null }
-  }
-
-  /** Adds the given map of log fields to the logging context for the scope of the given [block]. */
-  internal inline fun <ReturnT> withFieldMap(
-      fieldMap: Map<String, String?>,
-      block: () -> ReturnT
-  ): ReturnT {
-    val previousFieldMap = getFieldMap()
-    if (previousFieldMap != null) {
-      MDC.setContextMap(previousFieldMap + fieldMap)
-    } else {
-      MDC.setContextMap(fieldMap)
-    }
-
-    try {
-      return block()
-    } finally {
-      if (previousFieldMap != null) {
-        MDC.setContextMap(previousFieldMap)
-      } else {
-        MDC.clear()
-      }
-    }
   }
 }
 
@@ -477,101 +465,83 @@ internal value class OverwrittenContextFields(private val fields: Array<String?>
   }
 }
 
-internal fun createLogFieldFromContext(key: String, value: String): LogField {
-  return if (ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS &&
-      key.endsWith(LOGGING_CONTEXT_JSON_KEY_SUFFIX)) {
-    JsonLogFieldFromContext(key, value)
+/** Adds the given map of log fields to the logging context for the scope of the given [block]. */
+internal inline fun <ReturnT> withLoggingContextMap(
+    fieldMap: Map<String, String?>,
+    block: () -> ReturnT
+): ReturnT {
+  val previousFieldMap = LoggingContext.getFieldMap()
+  if (previousFieldMap != null) {
+    MDC.setContextMap(previousFieldMap + fieldMap)
   } else {
-    StringLogFieldFromContext(key, value)
+    MDC.setContextMap(fieldMap)
+  }
+
+  try {
+    return block()
+  } finally {
+    if (previousFieldMap != null) {
+      MDC.setContextMap(previousFieldMap)
+    } else {
+      MDC.clear()
+    }
   }
 }
 
-@PublishedApi
-internal class StringLogFieldFromContext(key: String, value: String) : StringLogField(key, value) {
-  /**
-   * We only want to include fields from the logging context if it's not already in the context (in
-   * which case the logger implementation will add the fields from SLF4J's MDC).
-   */
-  override fun includeInLog(): Boolean = !LoggingContext.hasKey(key)
-}
-
-@PublishedApi
-internal class JsonLogFieldFromContext(
-    /**
-     * We construct this log field with keys that already have the JSON key suffix (see
-     * [createLogFieldFromContext]). So we set [keyForLoggingContext] to the key with the suffix,
-     * and remove the suffix for [key] below.
-     */
-    keyWithJsonSuffix: String,
-    value: String,
-) :
-    JsonLogField(
-        key = keyWithJsonSuffix.removeSuffix(LOGGING_CONTEXT_JSON_KEY_SUFFIX),
-        value = value,
-        keyForLoggingContext = keyWithJsonSuffix,
-    ) {
-  /**
-   * We only want to include fields from the logging context if it's not already in the context (in
-   * which case the logger implementation will add the fields from SLF4J's MDC).
-   */
-  override fun includeInLog(): Boolean = !LoggingContext.hasKey(key)
-}
-
 /**
- * SLF4J's MDC only supports String values. This works fine for our [StringLogField] - but we also
- * want the ability to include JSON-serialized objects in our logging context. This is useful when
- * for example processing an event, and you want that event to be included on all logs in the scope
- * of processing it. If we were to just include it as a string, the JSON would be escaped, which
- * prevents log analysis platforms from parsing fields from the event and letting us query on them.
- * What we want is for the [JsonLogField] to be included as actual JSON on the log output,
- * unescaped, to get the benefits of structured logging.
+ * Wraps an [ExecutorService] in a new implementation that copies logging context fields (from
+ * [withLoggingContext]) from the parent thread to child threads when spawning new tasks. This is
+ * useful when you use an `ExecutorService` in the scope of a logging context, and you want the
+ * fields from the logging context to also be included on the logs in the child tasks.
  *
- * To achieve this, we add the raw JSON string from [JsonLogField] to the MDC, but with this suffix
- * added to the key. Then, users can configure our [LoggingContextJsonFieldWriter] to strip this
- * suffix from the key and write the field value as raw JSON in the log output. This only works when
- * using Logback with `logstash-logback-encoder`, but that's what this library is primarily designed
- * for anyway.
+ * ### Example
  *
- * We add a suffix to the field key instead of the field value, since the field value may be
- * external input, which would open us up to malicious actors breaking our logs by passing invalid
- * JSON strings with the appropriate prefix/suffix.
+ * Scenario: We store an updated order in a database, and then want to asynchronously update
+ * statistics for the order.
  *
- * This specific suffix was chosen to reduce the chance of clashing with other keys - MDC keys
- * typically don't have spaces/parentheses.
+ * ```
+ * import no.liflig.logging.field
+ * import no.liflig.logging.getLogger
+ * import no.liflig.logging.inheritLoggingContext
+ * import no.liflig.logging.withLoggingContext
+ * import java.util.concurrent.Executors
+ *
+ * private val log = getLogger()
+ *
+ * class OrderService(
+ *     private val orderRepository: OrderRepository,
+ *     private val statisticsService: StatisticsService,
+ * ) {
+ *   // Call inheritLoggingContext on the executor
+ *   private val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
+ *
+ *   fun updateOrder(order: Order) {
+ *     withLoggingContext(field("order", order)) {
+ *       orderRepository.update(order)
+ *       updateStatistics(order)
+ *     }
+ *   }
+ *
+ *   // In this scenario, we don't want updateStatistics to block updateOrder, so we use an
+ *   // ExecutorService to spawn a thread.
+ *   //
+ *   // But we want to log if it fails, and include the logging context from the parent thread.
+ *   // This is where inheritLoggingContext comes in.
+ *   private fun updateStatistics(order: Order) {
+ *     executor.execute {
+ *       try {
+ *         statisticsService.orderUpdated(order)
+ *       } catch (e: Exception) {
+ *         // This log will get the "order" field from the parent logging context
+ *         log.error(e) { "Failed to update order statistics" }
+ *       }
+ *     }
+ *   }
+ * }
+ * ```
  */
-internal const val LOGGING_CONTEXT_JSON_KEY_SUFFIX = " (json)"
-
-/**
- * We only want to add [LOGGING_CONTEXT_JSON_KEY_SUFFIX] to context field keys if the user has
- * configured [LoggingContextJsonFieldWriter] with `logstash-logback-encoder`. If this is not the
- * case, we don't want to add the key suffix, as that will show up in the log output.
- *
- * So to check this, we use this global boolean (volatile for thread-safety), defaulting to false.
- * If `LoggingContextJsonFieldWriter` is configured, its constructor will run when Logback is
- * initialized, and set this to true. Then we can check this value in [JsonLogField], to decide
- * whether or not to add the JSON key suffix.
- *
- * One obstacle with this approach is that we need Logback to be loaded before checking this field.
- * The user may construct a [JsonLogField] before loading Logback, in which case
- * `LoggingContextJsonFieldWriter`'s constructor will not have run yet, and we will omit the key
- * suffix when it should have been added. So to ensure that Logback is loaded before checking this
- * field, we call [ensureLoggerImplementationIsLoaded] from an `init` block on
- * [JsonLogField.Companion], which will run when the class is loaded. We test that this works in the
- * `LogbackLoggerTest` under `integration-tests/logback`.
- */
-@Volatile internal var ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS = false
-
-/**
- * See [ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS].
- *
- * This function catches all throwables (this is important, since we call this from static
- * initializers).
- */
-internal fun ensureLoggerImplementationIsLoaded() {
-  try {
-    // This will initialize the SLF4J logger implementation, if not already initialized
-    Slf4jLoggerFactory.getILoggerFactory()
-  } catch (_: Throwable) {}
+public fun ExecutorService.inheritLoggingContext(): ExecutorService {
+  return ExecutorServiceWithInheritedLoggingContext(this)
 }
 
 /**
@@ -596,7 +566,7 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
       return callable
     }
 
-    return Callable { LoggingContext.withFieldMap(contextFields) { callable.call() } }
+    return Callable { withLoggingContextMap(contextFields) { callable.call() } }
   }
 
   private fun wrapRunnable(runnable: Runnable): Runnable {
@@ -609,7 +579,7 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
       return runnable
     }
 
-    return Runnable { LoggingContext.withFieldMap(contextFields) { runnable.run() } }
+    return Runnable { withLoggingContextMap(contextFields) { runnable.run() } }
   }
 
   override fun execute(command: Runnable) {

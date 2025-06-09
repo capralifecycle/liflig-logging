@@ -1,7 +1,6 @@
 package no.liflig.logging
 
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -17,16 +16,20 @@ import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
 import kotlin.concurrent.withLock
+import kotlin.test.Test
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
-import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.MethodSource
+import no.liflig.logging.testutils.Event
+import no.liflig.logging.testutils.EventType
+import no.liflig.logging.testutils.LogOutput
+import no.liflig.logging.testutils.TestCase
+import no.liflig.logging.testutils.captureLogOutput
+import no.liflig.logging.testutils.parameterizedTest
+import no.liflig.logging.testutils.shouldBeEmpty
+import no.liflig.logging.testutils.shouldContainExactly
 
-private val log = getLogger {}
+private val log = getLogger()
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 internal class LoggingContextTest {
   @Test
   fun `field from logging context is included in log`() {
@@ -111,54 +114,6 @@ internal class LoggingContextTest {
             "nestedContext" to JsonPrimitive("value"),
             "outerContext" to JsonPrimitive("value"),
         )
-  }
-
-  @Test
-  fun `nested logging context restores previous context fields on exit`() {
-    val event1 = Event(id = 1001, type = EventType.ORDER_PLACED)
-    val event2 = Event(id = 1002, type = EventType.ORDER_UPDATED)
-
-    withLoggingContext(
-        field("event", event1),
-        field("stringField", "parentValue"),
-        field("parentOnlyField", "value1"),
-        field("fieldThatIsStringInParentButJsonInChild", "stringValue"),
-    ) {
-      val parentContext =
-          mapOf(
-              "event${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to """{"id":1001,"type":"ORDER_PLACED"}""",
-              "stringField" to "parentValue",
-              "parentOnlyField" to "value1",
-              "fieldThatIsStringInParentButJsonInChild" to "stringValue",
-          )
-      LoggingContext shouldContainExactly parentContext
-
-      withLoggingContext(
-          field("event", event2),
-          field("stringField", "childValue"),
-          field("childOnlyField", "value2"),
-          rawJsonField("fieldThatIsStringInParentButJsonInChild", """{"test":true}"""),
-      ) {
-        LoggingContext shouldContainExactly
-            mapOf(
-                "event${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to
-                    """{"id":1002,"type":"ORDER_UPDATED"}""",
-                "stringField" to "childValue",
-                "parentOnlyField" to "value1",
-                "childOnlyField" to "value2",
-                "fieldThatIsStringInParentButJsonInChild${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to
-                    """{"test":true}""",
-            )
-      }
-
-      LoggingContext shouldContainExactly parentContext
-    }
-  }
-
-  @Test
-  fun `ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS has expected value`() {
-    // Since we use LoggingContextJsonFieldWriter in tests, we expect this to be set
-    ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS.shouldBeTrue()
   }
 
   @Test
@@ -260,6 +215,54 @@ internal class LoggingContextTest {
   }
 
   @Test
+  fun `nested logging context restores previous context fields on exit`() {
+    val event1 = Event(id = 1001, type = EventType.ORDER_PLACED)
+    val event2 = Event(id = 1002, type = EventType.ORDER_UPDATED)
+
+    withLoggingContext(
+        field("event", event1),
+        field("stringField", "parentValue"),
+        field("parentOnlyField", "value1"),
+        field("fieldThatIsStringInParentButJsonInChild", "stringValue"),
+    ) {
+      val parentContext =
+          mapOf(
+              "event${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to """{"id":1001,"type":"ORDER_PLACED"}""",
+              "stringField" to "parentValue",
+              "parentOnlyField" to "value1",
+              "fieldThatIsStringInParentButJsonInChild" to "stringValue",
+          )
+      LoggingContext shouldContainExactly parentContext
+
+      withLoggingContext(
+          field("event", event2),
+          field("stringField", "childValue"),
+          field("childOnlyField", "value2"),
+          rawJsonField("fieldThatIsStringInParentButJsonInChild", """{"test":true}"""),
+      ) {
+        LoggingContext shouldContainExactly
+            mapOf(
+                "event${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to
+                    """{"id":1002,"type":"ORDER_UPDATED"}""",
+                "stringField" to "childValue",
+                "parentOnlyField" to "value1",
+                "childOnlyField" to "value2",
+                "fieldThatIsStringInParentButJsonInChild${LOGGING_CONTEXT_JSON_KEY_SUFFIX}" to
+                    """{"test":true}""",
+            )
+      }
+
+      LoggingContext shouldContainExactly parentContext
+    }
+  }
+
+  @Test
+  fun `ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS has expected value`() {
+    // Since we use LoggingContextJsonFieldWriter in tests, we expect this to be set
+    ADD_JSON_SUFFIX_TO_LOGGING_CONTEXT_KEYS.shouldBeTrue()
+  }
+
+  @Test
   fun `getLoggingContext allows passing logging context between threads`() {
     val event = Event(id = 1001, type = EventType.ORDER_PLACED)
 
@@ -302,23 +305,42 @@ internal class LoggingContextTest {
         )
   }
 
+  @Test
+  fun `withLoggingContextMap merges given map with existing fields`() {
+    withLoggingContext(field("existingField", "value")) {
+      LoggingContext shouldContainExactly mapOf("existingField" to "value")
+
+      withLoggingContextMap(
+          mapOf("fieldMap1" to "value", "fieldMap2" to "value"),
+      ) {
+        LoggingContext shouldContainExactly
+            mapOf(
+                "existingField" to "value",
+                "fieldMap1" to "value",
+                "fieldMap2" to "value",
+            )
+      }
+
+      // Previous fields should be restored after
+      LoggingContext shouldContainExactly mapOf("existingField" to "value")
+    }
+  }
+
   /**
    * [inheritLoggingContext] wraps an [ExecutorService], forwarding calls to the wrapped executor.
    * We want to verify that all these methods forward appropriately, so we make a test case for each
-   * executor method, and use this as a [MethodSource] on our executor tests to run each test on
-   * every executor method.
+   * executor method, and run [parameterizedTest] in our executor tests to run each test on every
+   * executor method.
    */
   class ExecutorTestCase(
-      private val name: String,
+      override val name: String,
       /**
        * `invokeAll` and `invokeAny` on [ExecutorService] block the calling thread. This affects how
        * we run our tests, so we set this flag to true for those cases.
        */
       val isBlocking: Boolean = false,
       val runTask: (ExecutorService, () -> Unit) -> Unit,
-  ) {
-    override fun toString() = name
-  }
+  ) : TestCase
 
   val executorTestCases =
       listOf(
@@ -346,35 +368,34 @@ internal class LoggingContextTest {
           },
       )
 
-  @ParameterizedTest
-  @MethodSource("getExecutorTestCases")
-  fun `ExecutorService with inheritLoggingContext allows passing logging context between threads`(
-      test: ExecutorTestCase
-  ) {
-    val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
-    val lock = ReentrantLock()
-    val latch = CountDownLatch(1) // Used to wait for the child thread to complete its log
+  @Test
+  fun `ExecutorService with inheritLoggingContext allows passing logging context between threads`() {
+    parameterizedTest(executorTestCases) { test ->
+      val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
+      val lock = ReentrantLock()
+      val latch = CountDownLatch(1) // Used to wait for the child thread to complete its log
 
-    val output = captureLogOutput {
-      // Aquire a lock around the outer withLoggingContext in the parent thread, to test that
-      // the logging context works in the child thread even when the outer context has exited.
-      // Only relevant if the executor method is non-blocking (see ExecutorTestCase.isBlocking).
-      lock.conditionallyLock(!test.isBlocking) {
-        withLoggingContext(field("fieldFromParentThread", "value")) {
-          test.runTask(executor) {
-            // Acquire the lock here in the child thread - this will block until the outer
-            // logging context has exited
-            lock.conditionallyLock(!test.isBlocking) { log.error { "Test" } }
-            latch.countDown()
+      val output = captureLogOutput {
+        // Aquire a lock around the outer withLoggingContext in the parent thread, to test that
+        // the logging context works in the child thread even when the outer context has exited.
+        // Only relevant if the executor method is non-blocking (see ExecutorTestCase.isBlocking).
+        lock.conditionallyLock(!test.isBlocking) {
+          withLoggingContext(field("fieldFromParentThread", "value")) {
+            test.runTask(executor) {
+              // Acquire the lock here in the child thread - this will block until the outer
+              // logging context has exited
+              lock.conditionallyLock(!test.isBlocking) { log.error { "Test" } }
+              latch.countDown()
+            }
           }
         }
+
+        latch.await() // Waits until child thread calls countDown()
       }
 
-      latch.await() // Waits until child thread calls countDown()
+      output.contextFields shouldContainExactly
+          mapOf("fieldFromParentThread" to JsonPrimitive("value"))
     }
-
-    output.contextFields shouldContainExactly
-        mapOf("fieldFromParentThread" to JsonPrimitive("value"))
   }
 
   /**
@@ -382,28 +403,27 @@ internal class LoggingContextTest {
    * there are fields in the logging context. Otherwise, we just forward the tasks directly - we
    * want to test that that works.
    */
-  @ParameterizedTest
-  @MethodSource("getExecutorTestCases")
-  fun `ExecutorService with inheritLoggingContext works when there are no fields in the context`(
-      test: ExecutorTestCase
-  ) {
-    val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
+  @Test
+  fun `ExecutorService with inheritLoggingContext works when there are no fields in the context`() {
+    parameterizedTest(executorTestCases) { test ->
+      val executor = Executors.newSingleThreadExecutor().inheritLoggingContext()
 
-    // Verify that there are no fields in parent thread context
-    LoggingContext.shouldBeEmpty()
-
-    val latch = CountDownLatch(1) // Used to wait for the child thread to complete its log
-    val executed = AtomicBoolean(false)
-
-    test.runTask(executor) {
-      // Verify that there are no fields in child thread context
+      // Verify that there are no fields in parent thread context
       LoggingContext.shouldBeEmpty()
-      executed.set(true)
-      latch.countDown()
-    }
 
-    latch.await()
-    executed.get().shouldBeTrue()
+      val latch = CountDownLatch(1) // Used to wait for the child thread to complete its log
+      val executed = AtomicBoolean(false)
+
+      test.runTask(executor) {
+        // Verify that there are no fields in child thread context
+        LoggingContext.shouldBeEmpty()
+        executed.set(true)
+        latch.countDown()
+      }
+
+      latch.await()
+      executed.get().shouldBeTrue()
+    }
   }
 
   @Test
@@ -441,35 +461,6 @@ internal class LoggingContextTest {
       barrier.await() // 2nd synchronization point
     }
   }
-
-  @Test
-  fun `LoggingContext withFieldMap merges given map with existing fields`() {
-    withLoggingContext(field("existingField", "value")) {
-      LoggingContext shouldContainExactly mapOf("existingField" to "value")
-
-      LoggingContext.withFieldMap(
-          mapOf("fieldMap1" to "value", "fieldMap2" to "value"),
-      ) {
-        LoggingContext shouldContainExactly
-            mapOf(
-                "existingField" to "value",
-                "fieldMap1" to "value",
-                "fieldMap2" to "value",
-            )
-      }
-
-      // Previous fields should be restored after
-      LoggingContext shouldContainExactly mapOf("existingField" to "value")
-    }
-  }
-}
-
-private infix fun LoggingContext.shouldContainExactly(map: Map<String, String>) {
-  this.getFieldMap().shouldNotBeNull().shouldContainExactly(map)
-}
-
-private fun LoggingContext.shouldBeEmpty() {
-  this.getFieldList().shouldBeEmpty()
 }
 
 /**

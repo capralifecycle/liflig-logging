@@ -20,17 +20,17 @@ import org.slf4j.spi.LoggingEventAware
  * instead construct the log event in-place on `LogBuilder`, we can avoid allocations on the hot
  * path.
  *
- * SLF4J has support for building log events, through the [org.slf4j.event.LoggingEvent] interface,
- * [org.slf4j.event.DefaultLoggingEvent] implementation, and [LoggingEventAware] logger interface.
- * And [LogbackLogger] implements `LoggingEventAware` - great! Except Logback uses a different event
- * format internally, so in its implementation of [LoggingEventAware.log], it has to map from the
- * SLF4J event to its own event format. This allocates a new event, defeating the purpose of
- * constructing our log event in-place on `LogBuilder`.
+ * SLF4J has support for building log events, through the `LoggingEvent` interface,
+ * `DefaultLoggingEvent` implementation, and `LoggingEventAware` logger interface. And Logback's
+ * logger implements `LoggingEventAware` - great! Except Logback uses a different event format
+ * internally, so in its implementation of `LoggingEventAware.log`, it has to map from the SLF4J
+ * event to its own event format. This allocates a new event, defeating the purpose of constructing
+ * our log event in-place on `LogBuilder`.
  *
  * So to optimize for the common SLF4J + Logback combination, we construct the log event on
- * Logback's format in [LogbackLogEvent], so we can log it directly. However, we still want to be
+ * Logback's format in `LogbackLogEvent`, so we can log it directly. However, we still want to be
  * compatible with alternative SLF4J implementations, so we implement SLF4J's format in
- * [Slf4jLogEvent]. [LogEvent] is the common interface between the two, so that [LogBuilder] can
+ * `Slf4jLogEvent`. [LogEvent] is the common interface between the two, so that [LogBuilder] can
  * call this interface without having to care about the underlying implementation.
  */
 @PublishedApi
@@ -121,25 +121,19 @@ internal class LogbackLogEvent(level: LogLevel, cause: Throwable?, logger: Logba
   }
 }
 
-/**
- * We use an extension function for converting a [LogLevel] to the Logback equivalent, instead of a
- * field on [LogLevel] (like we do for [Slf4jLevel]). This is to allow using this library without
- * Logback on the classpath (such as when using an alternative SLF4J implementation). In such cases,
- * loading Logback may interfere with the user's chosen SLF4J logger.
- */
 internal fun LogLevel.toLogback(): LogbackLevel {
-  return when (this) {
-    LogLevel.INFO -> LogbackLevel.INFO
-    LogLevel.WARN -> LogbackLevel.WARN
-    LogLevel.ERROR -> LogbackLevel.ERROR
-    LogLevel.DEBUG -> LogbackLevel.DEBUG
-    LogLevel.TRACE -> LogbackLevel.TRACE
-  }
+  return this.match(
+      ERROR = { LogbackLevel.ERROR },
+      WARN = { LogbackLevel.WARN },
+      INFO = { LogbackLevel.INFO },
+      DEBUG = { LogbackLevel.DEBUG },
+      TRACE = { LogbackLevel.TRACE },
+  )
 }
 
 /** Extends SLF4J's log event class to implement [LogEvent]. */
 internal class Slf4jLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLogger) :
-    LogEvent, BaseSlf4jEvent(level.slf4jLevel, logger) {
+    LogEvent, BaseSlf4jEvent(level.toSlf4j(), logger) {
   init {
     super.setThrowable(cause)
     super.setCallerBoundary(FULLY_QUALIFIED_CLASS_NAME)
@@ -190,12 +184,12 @@ internal class Slf4jLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLo
     when (level!!) {
       // We don't assume that the SLF4J implementation accepts a `null` cause exception in the
       // overload that takes a throwable. So we only call that overload if `throwable != null`.
-      Slf4jLevel.INFO ->
-          if (throwable == null) logger.info(message) else logger.info(message, throwable)
-      Slf4jLevel.WARN ->
-          if (throwable == null) logger.warn(message) else logger.warn(message, throwable)
       Slf4jLevel.ERROR ->
           if (throwable == null) logger.error(message) else logger.error(message, throwable)
+      Slf4jLevel.WARN ->
+          if (throwable == null) logger.warn(message) else logger.warn(message, throwable)
+      Slf4jLevel.INFO ->
+          if (throwable == null) logger.info(message) else logger.info(message, throwable)
       Slf4jLevel.DEBUG ->
           if (throwable == null) logger.debug(message) else logger.debug(message, throwable)
       Slf4jLevel.TRACE ->
@@ -233,6 +227,16 @@ internal class Slf4jLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLo
   }
 }
 
+internal fun LogLevel.toSlf4j(): Slf4jLevel {
+  return this.match(
+      ERROR = { Slf4jLevel.ERROR },
+      WARN = { Slf4jLevel.WARN },
+      INFO = { Slf4jLevel.INFO },
+      DEBUG = { Slf4jLevel.DEBUG },
+      TRACE = { Slf4jLevel.TRACE },
+  )
+}
+
 /**
  * Wrapper class for a pre-serialized JSON string. It implements [JsonSerializable] from Jackson,
  * because most JSON-outputting logger implementations will use that library to encode the logs (at
@@ -241,7 +245,6 @@ internal class Slf4jLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLo
  * Since we use this to wrap a value that has already been serialized with `kotlinx.serialization`,
  * we simply call [JsonGenerator.writeRawValue] in [serialize] to write the JSON string as-is.
  */
-@PublishedApi
 internal class RawJson(private val json: String) : JsonSerializable {
   override fun toString() = json
 

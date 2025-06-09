@@ -6,16 +6,16 @@ import kotlinx.serialization.SerializationStrategy
  * Class used in the logging methods on [Logger], allowing you to add structured key-value data to
  * the log by calling the [field] and [rawJsonField] methods.
  *
- * This class is given as a receiver to the lambda arguments on `Logger`'s methods, which lets you
- * call its methods directly in the scope of that lambda. This is a common technique for creating
- * _type-safe builders_ in Kotlin (see the
+ * This class is provided as a receiver for the `buildLog` lambda parameter on `Logger`'s methods,
+ * which lets you call its methods directly in the scope of the lambda. This is a common pattern for
+ * creating _type-safe builders_ in Kotlin (see the
  * [Kotlin docs](https://kotlinlang.org/docs/lambdas.html#function-literals-with-receiver) for more
  * on this).
  *
  * ### Example
  *
  * ```
- * private val log = getLogger {}
+ * private val log = getLogger()
  *
  * fun example(event: Event) {
  *   log.info {
@@ -27,7 +27,7 @@ import kotlinx.serialization.SerializationStrategy
  * }
  * ```
  */
-@JvmInline // Inline value class, since we just wrap a log event
+@JvmInline // Inline value class, to wrap the underlying log event without overhead
 public value class LogBuilder
 @PublishedApi
 internal constructor(
@@ -46,7 +46,7 @@ internal constructor(
    *
    * If you want to specify the serializer for the value explicitly, you can call the overload of
    * this method that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy]
-   * as a third argument. That is also useful for cases where you can't call this method with a
+   * as a third parameter. That is also useful for cases where you can't call this method with a
    * reified type parameter.
    *
    * If you have a value that is already serialized, you should use [rawJsonField] instead.
@@ -57,7 +57,7 @@ internal constructor(
    * import no.liflig.logging.getLogger
    * import kotlinx.serialization.Serializable
    *
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example() {
    *   val event = Event(id = 1001, type = EventType.ORDER_PLACED)
@@ -93,11 +93,11 @@ internal constructor(
    *
    * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
    * here, using their `toString()` representation instead:
-   * - [java.time.Instant]
-   * - [java.util.UUID]
-   * - [java.net.URI]
-   * - [java.net.URL]
-   * - [java.math.BigDecimal]
+   * - `java.time.Instant`
+   * - `java.util.UUID`
+   * - `java.net.URI`
+   * - `java.net.URL`
+   * - `java.math.BigDecimal`
    */
   public inline fun <reified ValueT> field(key: String, value: ValueT) {
     if (!logEvent.isFieldKeyAdded(key)) {
@@ -122,7 +122,7 @@ internal constructor(
    *
    * If you want to specify the serializer for the value explicitly, you can call the overload of
    * this method that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy]
-   * as a third argument. That is also useful for cases where you can't call this method with a
+   * as a third parameter. That is also useful for cases where you can't call this method with a
    * reified type parameter.
    *
    * If you have a value that is already serialized, you should use [rawJsonField] instead.
@@ -133,7 +133,7 @@ internal constructor(
    * import no.liflig.logging.getLogger
    * import kotlinx.serialization.Serializable
    *
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example() {
    *   val event = Event(id = 1001, type = EventType.ORDER_PLACED)
@@ -169,11 +169,11 @@ internal constructor(
    *
    * Certain types that `kotlinx.serialization` doesn't support natively have special-case handling
    * here, using their `toString()` representation instead:
-   * - [java.time.Instant]
-   * - [java.util.UUID]
-   * - [java.net.URI]
-   * - [java.net.URL]
-   * - [java.math.BigDecimal]
+   * - `java.time.Instant`
+   * - `java.util.UUID`
+   * - `java.net.URI`
+   * - `java.net.URL`
+   * - `java.math.BigDecimal`
    */
   public fun <ValueT : Any> field(
       key: String,
@@ -209,7 +209,7 @@ internal constructor(
    * ```
    * import no.liflig.logging.getLogger
    *
-   * private val log = getLogger {}
+   * private val log = getLogger()
    *
    * fun example() {
    *   val eventJson = """{"id":1001,"type":"ORDER_PLACED"}"""
@@ -256,11 +256,8 @@ internal constructor(
    */
   public fun addField(field: LogField) {
     // Don't add fields with keys that have already been added
-    if (!logEvent.isFieldKeyAdded(field.key) && field.includeInLog()) {
-      when (field) {
-        is JsonLogField -> logEvent.addJsonField(field.key, field.value)
-        is StringLogField -> logEvent.addStringField(field.key, field.value)
-      }
+    if (!logEvent.isFieldKeyAdded(field.key)) {
+      field.addToLogEvent(logEvent)
     }
   }
 
@@ -282,7 +279,7 @@ internal constructor(
 
   /**
    * Checks if the log [cause] exception (or any of its own cause exceptions) implements the
-   * [WithLogFields] interface, and if so, adds those fields to the log.
+   * [HasLogFields] interface, and if so, adds those fields to the log.
    */
   @PublishedApi
   internal fun addFieldsFromCauseException(cause: Throwable) {
@@ -298,7 +295,7 @@ internal constructor(
     // We set max depth to 10, which should be high enough to not affect real users.
     var depth = 0
     while (exception != null && depth < 10) {
-      if (exception is WithLogFields) {
+      if (exception is HasLogFields) {
         addFields(exception.logFields)
       }
 
