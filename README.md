@@ -209,18 +209,17 @@ for a class in a generic manner.
 
 The inspiration for this library mostly came from some inconveniencies and limitations that we've
 experienced with the [`kotlin-logging`](https://github.com/oshai/kotlin-logging) library (it's a
-great library, these are just my subjective opinions!). Here are some of the things we wanted to
+great library, these are just subjective opinions!). Here are some of the things we wanted to
 improve with this library:
 
 - **Structured logging**
   - In `kotlin-logging`, going from a log _without_ structured log fields to a log _with_  them
     requires you to switch your logger method (`info` -> `atInfo`), use a different syntax
     (`message = ` instead of returning a string), and construct a map for the fields.
-  - Having to switch syntax becomes a barrier for developers to do structured logging. In my
+  - Having to switch syntax becomes a barrier for developers to do structured logging. In our
     experience, the key to making structured logging work in practice is to reduce such barriers.
   - So in `liflig-logging`, we wanted to make this easier: you use the same logger methods whether
-    you
-    are adding fields or not, and adding structured data to an existing log is as simple as just
+    you are adding fields or not, and adding structured data to an existing log is as simple as just
     calling `field` in the scope of the log lambda.
 - **Using `kotlinx.serialization` for log field serialization**
   - `kotlin-logging` also wraps SLF4J in the JVM implementation. It passes structured log fields as
