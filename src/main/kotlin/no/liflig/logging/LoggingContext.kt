@@ -171,11 +171,11 @@ internal inline fun <ReturnT> withLoggingContextInternal(
     logFields: Array<out LogField>,
     block: () -> ReturnT
 ): ReturnT {
-  val overwrittenFields = LoggingContext.addFields(logFields)
+  val overwrittenFields = LoggingContext.addFieldsStatic(logFields)
   try {
     return block()
   } finally {
-    LoggingContext.removeFields(logFields, overwrittenFields)
+    LoggingContext.removeFieldsStatic(logFields, overwrittenFields)
   }
 }
 
@@ -248,9 +248,16 @@ public fun getLoggingContext(): List<LogField> {
  */
 @PublishedApi
 internal object LoggingContext {
+  // Kept for backwards compatibility (since we added `@JvmStatic` to `addFieldsStatic`, which is a
+  // binary-incompatible change). Once users have migrated, we should change this to `@JvmStatic` as
+  // well and delegate it to `addFieldsStatic`, and then finally merge the two declarations.
+  @PublishedApi
+  internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields =
+      addFieldsStatic(fields)
+
   @PublishedApi
   @JvmStatic
-  internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields {
+  internal fun addFieldsStatic(fields: Array<out LogField>): OverwrittenContextFields {
     var overwrittenFields = OverwrittenContextFields(null)
 
     for (index in fields.indices) {
@@ -309,13 +316,22 @@ internal object LoggingContext {
     return overwrittenFields
   }
 
+  // Kept for backwards compatibility (since we added `@JvmStatic` to `removeFieldsStatic`, which is
+  // a binary-incompatible change). Once users have migrated, we should change this to `@JvmStatic`
+  // as well and delegate it to `removeFieldsStatic`, and then finally merge the two declarations.
+  @PublishedApi
+  internal fun removeFields(
+      fields: Array<out LogField>,
+      overwrittenFields: OverwrittenContextFields
+  ) = removeFieldsStatic(fields, overwrittenFields)
+
   /**
    * Takes the array of overwritten field values returned by [LoggingContext.addFields], to restore
    * the previous context values after the current context exits.
    */
   @PublishedApi
   @JvmStatic
-  internal fun removeFields(
+  internal fun removeFieldsStatic(
       fields: Array<out LogField>,
       overwrittenFields: OverwrittenContextFields
   ) {
