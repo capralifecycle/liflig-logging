@@ -1,7 +1,6 @@
 {
   "extends": [
-    "github>capraconsulting/renovate-config:library",
-    "github>capraconsulting/renovate-config:aggressive"
+    "github>capralifecycle/renovate-config:monthly-grouped"
   ],
   // Our integration tests depend on liflig-logging with a specific snapshot version (see integration-tests/README.md),
   // and we don't want Renovate to update that
