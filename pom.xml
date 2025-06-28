@@ -49,7 +49,7 @@
 
     <!-- Serialization -->
     <kotlinx-serialization.version>1.8.1</kotlinx-serialization.version>
-    <jackson.version>2.19.0</jackson.version>
+    <jackson.version>2.19.1</jackson.version>
 
     <!-- Testing -->
     <kotest.version>5.9.1</kotest.version>
