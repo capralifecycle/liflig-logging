@@ -7,7 +7,7 @@
   <parent>
     <groupId>no.liflig</groupId>
     <artifactId>kotlin-parent</artifactId>
-    <version>3.20250531.145534</version>
+    <version>3.20250717.094926</version>
   </parent>
 
   <!--suppress MavenRedundantGroupId -->
@@ -48,7 +48,7 @@
     <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
 
     <!-- Serialization -->
-    <kotlinx-serialization.version>1.8.1</kotlinx-serialization.version>
+    <kotlinx-serialization.version>1.9.0</kotlinx-serialization.version>
     <jackson.version>2.19.1</jackson.version>
 
     <!-- Testing -->
@@ -57,7 +57,7 @@
     <!-- Maven plugins -->
     <maven-dependency-plugin.version>3.8.1</maven-dependency-plugin.version>
     <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
-    <flatten-maven-plugin.version>1.7.0</flatten-maven-plugin.version>
+    <flatten-maven-plugin.version>1.7.1</flatten-maven-plugin.version>
   </properties>
 
   <dependencies>
