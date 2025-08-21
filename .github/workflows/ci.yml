@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: "zulu"
-          java-version: "17.0.10"
+          java-version: "21.0.8"
           java-package: "jdk"
 
       - uses: capralifecycle/actions-lib/check-runtime-dependencies@15d6e3ef41e608eb59e4c12c656018b832c0117c # v1.6.1
