@@ -58,6 +58,8 @@
     <maven-dependency-plugin.version>3.8.1</maven-dependency-plugin.version>
     <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
     <flatten-maven-plugin.version>1.7.1</flatten-maven-plugin.version>
+    <!-- Check for newer versions here: https://gitlab.com/chromaway/core-tools/kotlin-bcv-maven-plugin/-/tags -->
+    <binary-compatibility-validator.version>0.2.1</binary-compatibility-validator.version>
   </properties>
 
   <dependencies>
@@ -131,6 +133,14 @@
       <url>https://maven.pkg.github.com/capralifecycle/*</url>
     </repository>
   </repositories>
+
+  <!-- For Binary Compatibility Validator, see comment on kotlin-bcv-maven-plugin below -->
+  <pluginRepositories>
+    <pluginRepository>
+      <id>kotlin-bcv-maven-plugin</id>
+      <url>https://gitlab.com/api/v4/projects/64479054/packages/maven</url>
+    </pluginRepository>
+  </pluginRepositories>
 
   <distributionManagement>
     <repository>
@@ -286,6 +296,34 @@
                 <argument>-Dstyle.color=always</argument>
               </arguments>
             </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        Kotlin provides a Binary Compatibility Validator tool to avoid accidental breaking changes in a library's public
+        API. It works by generating a .api file (`api/liflig-logging.api`) that contains the full public API of the
+        library, using the `kotlin-bcv:dump` task. Then, a `kotlin-bcv:check` task runs during tests, which fails if
+        there are changes to the .api file. If you want to _add_ new APIs (not a breaking change), you must run the
+        `kotlin-bcv:dump` task to update the API file (and check the git diff so you don't accidentally make breaking
+        changes!).
+
+        Kotlin recommends using this for all libraries:
+        https://kotlinlang.org/docs/api-guidelines-backward-compatibility.html#use-the-binary-compatibility-validator
+
+        Unfortunately, BCV is originally a Gradle-only plugin. But a kind soul ported it to Kotlin, so we can use it:
+        https://slack-chats.kotlinlang.org/t/23404390/i-need-a-tool-to-check-if-i-break-binary-compatibility-in-my
+      -->
+      <plugin>
+        <groupId>com.chromaway</groupId>
+        <artifactId>kotlin-bcv-maven-plugin</artifactId>
+        <version>${binary-compatibility-validator.version}</version>
+        <executions>
+          <execution>
+            <id>check</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>

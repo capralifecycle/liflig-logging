@@ -1,0 +1,154 @@
+public class no/liflig/logging/ExceptionWithLogFields : java/lang/RuntimeException, no/liflig/logging/HasLogFields {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;[Lno/liflig/logging/LogField;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;[Lno/liflig/logging/LogField;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/List;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> ([Lno/liflig/logging/LogField;Ljava/lang/Throwable;)V
+	public synthetic fun <init> ([Lno/liflig/logging/LogField;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getCause ()Ljava/lang/Throwable;
+	public final fun getLogFields ()Ljava/util/List;
+	public fun getMessage ()Ljava/lang/String;
+}
+
+public abstract interface class no/liflig/logging/HasLogFields {
+	public abstract fun getLogFields ()Ljava/util/List;
+}
+
+public class no/liflig/logging/JsonLogField : no/liflig/logging/LogField {
+	public static final field Companion Lno/liflig/logging/JsonLogField$Companion;
+	public static final field NULL_VALUE Ljava/lang/String;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class no/liflig/logging/JsonLogField$Companion {
+}
+
+public final class no/liflig/logging/LogBuilder {
+	public static final fun addField-impl (Lno/liflig/logging/LogEvent;Lno/liflig/logging/LogField;)V
+	public static final fun addFields-impl (Lno/liflig/logging/LogEvent;Ljava/lang/Iterable;)V
+	public static final fun addFieldsFromCauseException-impl (Lno/liflig/logging/LogEvent;Ljava/lang/Throwable;)V
+	public static final synthetic fun box-impl (Lno/liflig/logging/LogEvent;)Lno/liflig/logging/LogBuilder;
+	public static fun constructor-impl (Lno/liflig/logging/LogEvent;)Lno/liflig/logging/LogEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Lno/liflig/logging/LogEvent;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Lno/liflig/logging/LogEvent;Lno/liflig/logging/LogEvent;)Z
+	public static final fun field-impl (Lno/liflig/logging/LogEvent;Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
+	public fun hashCode ()I
+	public static fun hashCode-impl (Lno/liflig/logging/LogEvent;)I
+	public static final fun rawJsonField-impl (Lno/liflig/logging/LogEvent;Ljava/lang/String;Ljava/lang/String;Z)V
+	public static synthetic fun rawJsonField-impl$default (Lno/liflig/logging/LogEvent;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)V
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Lno/liflig/logging/LogEvent;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Lno/liflig/logging/LogEvent;
+}
+
+public abstract interface class no/liflig/logging/LogEvent {
+	public abstract fun addJsonField (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun addStringField (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun isFieldKeyAdded (Ljava/lang/String;)Z
+	public abstract fun log (Ljava/lang/String;Lorg/slf4j/Logger;)V
+}
+
+public final class no/liflig/logging/LogEventKt {
+	public static final fun createLogEvent (Lno/liflig/logging/LogLevel;Ljava/lang/Throwable;Lorg/slf4j/Logger;)Lno/liflig/logging/LogEvent;
+}
+
+public abstract class no/liflig/logging/LogField {
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class no/liflig/logging/LogFieldKt {
+	public static final field JSON_NULL_VALUE Ljava/lang/String;
+	public static final field jsonEncoder Lkotlinx/serialization/json/Json;
+	public static final fun field (Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)Lno/liflig/logging/LogField;
+	public static final fun fieldValueShouldUseToString (Ljava/lang/Object;)Z
+	public static final fun getLogFieldJson ()Lkotlinx/serialization/json/Json;
+	public static final fun rawJson (Ljava/lang/String;Z)Lkotlinx/serialization/json/JsonElement;
+	public static synthetic fun rawJson$default (Ljava/lang/String;ZILjava/lang/Object;)Lkotlinx/serialization/json/JsonElement;
+	public static final fun rawJsonField (Ljava/lang/String;Ljava/lang/String;Z)Lno/liflig/logging/LogField;
+	public static synthetic fun rawJsonField$default (Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lno/liflig/logging/LogField;
+}
+
+public final class no/liflig/logging/LogLevel {
+	public static final field Companion Lno/liflig/logging/LogLevel$Companion;
+	public static final field DEBUG Lno/liflig/logging/LogLevel;
+	public static final field ERROR Lno/liflig/logging/LogLevel;
+	public static final field INFO Lno/liflig/logging/LogLevel;
+	public static final field TRACE Lno/liflig/logging/LogLevel;
+	public static final field WARN Lno/liflig/logging/LogLevel;
+	public final fun getSlf4jLevel ()Lorg/slf4j/event/Level;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class no/liflig/logging/LogLevel$Companion {
+}
+
+public final class no/liflig/logging/Logger {
+	public static final fun at-impl (Lorg/slf4j/Logger;Lno/liflig/logging/LogLevel;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun at-impl$default (Lorg/slf4j/Logger;Lno/liflig/logging/LogLevel;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public static final synthetic fun box-impl (Lorg/slf4j/Logger;)Lno/liflig/logging/Logger;
+	public static final fun debug-impl (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun debug-impl$default (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Lorg/slf4j/Logger;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Lorg/slf4j/Logger;Lorg/slf4j/Logger;)Z
+	public static final fun error-impl (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun error-impl$default (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public fun hashCode ()I
+	public static fun hashCode-impl (Lorg/slf4j/Logger;)I
+	public static final fun info-impl (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun info-impl$default (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public static final fun isDebugEnabled-impl (Lorg/slf4j/Logger;)Z
+	public static final fun isEnabledFor-impl (Lorg/slf4j/Logger;Lno/liflig/logging/LogLevel;)Z
+	public static final fun isErrorEnabled-impl (Lorg/slf4j/Logger;)Z
+	public static final fun isInfoEnabled-impl (Lorg/slf4j/Logger;)Z
+	public static final fun isTraceEnabled-impl (Lorg/slf4j/Logger;)Z
+	public static final fun isWarnEnabled-impl (Lorg/slf4j/Logger;)Z
+	public static final fun log-impl (Lorg/slf4j/Logger;Lno/liflig/logging/LogLevel;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Lorg/slf4j/Logger;)Ljava/lang/String;
+	public static final fun trace-impl (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun trace-impl$default (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+	public final synthetic fun unbox-impl ()Lorg/slf4j/Logger;
+	public static final fun warn-impl (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun warn-impl$default (Lorg/slf4j/Logger;Ljava/lang/Throwable;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+}
+
+public final class no/liflig/logging/LoggerKt {
+	public static final fun getLogger ()Lorg/slf4j/Logger;
+	public static final fun getLogger (Ljava/lang/Class;)Lorg/slf4j/Logger;
+	public static final fun getLogger (Ljava/lang/String;)Lorg/slf4j/Logger;
+	public static final fun getLogger (Lkotlin/jvm/functions/Function0;)Lorg/slf4j/Logger;
+	public static final fun getLogger (Lkotlin/reflect/KClass;)Lorg/slf4j/Logger;
+}
+
+public final class no/liflig/logging/LoggingContext {
+	public static final field INSTANCE Lno/liflig/logging/LoggingContext;
+	public final fun addFields-sKd7QUc ([Lno/liflig/logging/LogField;)[Ljava/lang/String;
+	public static final fun addFieldsStatic-sKd7QUc ([Lno/liflig/logging/LogField;)[Ljava/lang/String;
+	public final fun removeFields-cRJV7f0 ([Lno/liflig/logging/LogField;[Ljava/lang/String;)V
+	public static final fun removeFieldsStatic-cRJV7f0 ([Lno/liflig/logging/LogField;[Ljava/lang/String;)V
+}
+
+public final class no/liflig/logging/LoggingContextJsonFieldWriter : net/logstash/logback/composite/loggingevent/mdc/MdcEntryWriter {
+	public fun <init> ()V
+	public fun writeMdcEntry (Lcom/fasterxml/jackson/core/JsonGenerator;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+}
+
+public final class no/liflig/logging/LoggingContextKt {
+	public static final fun getLoggingContext ()Ljava/util/List;
+	public static final fun inheritLoggingContext (Ljava/util/concurrent/ExecutorService;)Ljava/util/concurrent/ExecutorService;
+	public static final fun withLoggingContext (Ljava/util/List;Lkotlin/jvm/functions/Function0;)Ljava/lang/Object;
+	public static final fun withLoggingContext ([Lno/liflig/logging/LogField;Lkotlin/jvm/functions/Function0;)Ljava/lang/Object;
+	public static final fun withLoggingContextInternal ([Lno/liflig/logging/LogField;Lkotlin/jvm/functions/Function0;)Ljava/lang/Object;
+}
+
+public class no/liflig/logging/StringLogField : no/liflig/logging/LogField {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+}
+
