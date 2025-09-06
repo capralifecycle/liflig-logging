@@ -1,26 +1,43 @@
+// We use Kotlin Contracts in `withLoggingContext`, for ergonomic use with lambdas. Contracts are
+// an experimental feature, but they guarantee binary compatibility, so we can safely use them here
+@file:OptIn(ExperimentalContracts::class)
+
 package no.liflig.logging
 
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 import org.slf4j.MDC
+import org.slf4j.event.KeyValuePair
 
 /**
  * Adds the given [log fields][LogField] to every log made by a [Logger] in the context of the given
- * [block]. Use the [field]/[rawJsonField] functions to construct log fields.
+ * [block].
  *
- * An example of when this is useful is when processing an event, and you want the event to be
- * attached to every log while processing it. Instead of manually attaching the event to each log,
- * you can wrap the event processing in `withLoggingContext` with the event as a log field, and then
- * all logs inside that context will include the event.
+ * Use the [field]/[rawJsonField] functions to construct log fields.
+ *
+ * If an exception is thrown from [block], then the given log fields are attached to the exception,
+ * and included in the log output when the exception is logged. That way, we don't lose logging
+ * context when an exception escapes the context scope.
+ *
+ * An example of when this is useful is when processing an event, and you want to trace all the logs
+ * made in the context of the event. Instead of manually attaching the event ID to each log, you can
+ * wrap the event processing in `withLoggingContext`, with the event ID as a log field. All the logs
+ * inside that context will then include the event ID as a structured log field, that you can filter
+ * on in your log analysis tool.
  *
  * ### Field value encoding with SLF4J
  *
- * The implementation uses `MDC` from SLF4J, which only supports String values by default. To encode
- * object values as actual JSON (not escaped strings), you can add
- * `no.liflig.logging.LoggingContextJsonFieldWriter` as an `mdcEntryWriter` for
- * [`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder), like this:
+ * The implementation uses `MDC` from SLF4J, which only supports String values by default. But we
+ * want to encode object values in the logging context as actual JSON (not escaped strings), so that
+ * log analysis tools can parse the fields. If you're using Logback and
+ * [`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder) for JSON
+ * output, you can add support for this by configuring
+ * `no.liflig.logging.output.logback.JsonContextFieldWriter` as an `mdcEntryWriter`:
  * ```xml
  * <!-- Example Logback config (in src/main/resources/logback.xml) -->
  * <?xml version="1.0" encoding="UTF-8"?>
@@ -28,7 +45,7 @@ import org.slf4j.MDC
  *   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
  *     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
  *       <!-- Writes object values from logging context as actual JSON (not escaped) -->
- *       <mdcEntryWriter class="no.liflig.logging.LoggingContextJsonFieldWriter"/>
+ *       <mdcEntryWriter class="no.liflig.logging.output.logback.JsonContextFieldWriter"/>
  *     </encoder>
  *   </appender>
  *
@@ -57,7 +74,7 @@ import org.slf4j.MDC
  * private val log = getLogger()
  *
  * fun example(event: Event) {
- *   withLoggingContext(field("event", event)) {
+ *   withLoggingContext(field("eventId", event.id)) {
  *     log.debug { "Started processing event" }
  *     // ...
  *     log.debug { "Finished processing event" }
@@ -65,35 +82,55 @@ import org.slf4j.MDC
  * }
  * ```
  *
- * If you have configured `no.liflig.logging.LoggingContextJsonFieldWriter`, the field from
+ * If you have configured `no.liflig.logging.output.logback.JsonContextFieldWriter`, the field from
  * `withLoggingContext` will then be attached to every log as follows:
  * ```json
- * { "message": "Started processing event", "event": { ... } }
- * { "message": "Finished processing event", "event": { ... } }
+ * { "message": "Started processing event", "eventId": "..." }
+ * { "message": "Finished processing event", "eventId": "..." }
  * ```
  */
 public inline fun <ReturnT> withLoggingContext(
     vararg logFields: LogField,
-    block: () -> ReturnT
+    block: () -> ReturnT,
 ): ReturnT {
-  return withLoggingContextInternal(logFields, block)
+  // Allows callers to use `block` as if it were in-place
+  contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+
+  addFieldsToLoggingContext(logFields)
+  try {
+    return block()
+  } catch (e: Exception) {
+    addLoggingContextToException(e, logFields)
+    throw e
+  } finally {
+    removeFieldsFromLoggingContext(logFields)
+  }
 }
 
 /**
  * Adds the given [log fields][LogField] to every log made by a [Logger] in the context of the given
- * [block]. Use the [field]/[rawJsonField] functions to construct log fields.
+ * [block].
  *
- * An example of when this is useful is when processing an event, and you want the event to be
- * attached to every log while processing it. Instead of manually attaching the event to each log,
- * you can wrap the event processing in `withLoggingContext` with the event as a log field, and then
- * all logs inside that context will include the event.
+ * Use the [field]/[rawJsonField] functions to construct log fields.
+ *
+ * If an exception is thrown from [block], then the given log fields are attached to the exception,
+ * and included in the log output when the exception is logged. That way, we don't lose logging
+ * context when an exception escapes the context scope.
+ *
+ * An example of when this is useful is when processing an event, and you want to trace all the logs
+ * made in the context of the event. Instead of manually attaching the event ID to each log, you can
+ * wrap the event processing in `withLoggingContext`, with the event ID as a log field. All the logs
+ * inside that context will then include the event ID as a structured log field, that you can filter
+ * on in your log analysis tool.
  *
  * ### Field value encoding with SLF4J
  *
- * The implementation uses `MDC` from SLF4J, which only supports String values by default. To encode
- * object values as actual JSON (not escaped strings), you can add
- * `no.liflig.logging.LoggingContextJsonFieldWriter` as an `mdcEntryWriter` for
- * [`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder), like this:
+ * The implementation uses `MDC` from SLF4J, which only supports String values by default. But we
+ * want to encode object values in the logging context as actual JSON (not escaped strings), so that
+ * log analysis tools can parse the fields. If you're using Logback and
+ * [`logstash-logback-encoder`](https://github.com/logfellow/logstash-logback-encoder) for JSON
+ * output, you can add support for this by configuring
+ * `no.liflig.logging.output.logback.JsonContextFieldWriter` as an `mdcEntryWriter`:
  * ```xml
  * <!-- Example Logback config (in src/main/resources/logback.xml) -->
  * <?xml version="1.0" encoding="UTF-8"?>
@@ -101,7 +138,7 @@ public inline fun <ReturnT> withLoggingContext(
  *   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
  *     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
  *       <!-- Writes object values from logging context as actual JSON (not escaped) -->
- *       <mdcEntryWriter class="no.liflig.logging.LoggingContextJsonFieldWriter"/>
+ *       <mdcEntryWriter class="no.liflig.logging.output.logback.JsonContextFieldWriter"/>
  *     </encoder>
  *   </appender>
  *
@@ -130,7 +167,7 @@ public inline fun <ReturnT> withLoggingContext(
  * private val log = getLogger()
  *
  * fun example(event: Event) {
- *   withLoggingContext(field("event", event)) {
+ *   withLoggingContext(field("eventId", event.id)) {
  *     log.debug { "Started processing event" }
  *     // ...
  *     log.debug { "Finished processing event" }
@@ -138,44 +175,116 @@ public inline fun <ReturnT> withLoggingContext(
  * }
  * ```
  *
- * If you have configured `no.liflig.logging.LoggingContextJsonFieldWriter`, the field from
+ * If you have configured `no.liflig.logging.output.logback.JsonContextFieldWriter`, the field from
  * `withLoggingContext` will then be attached to every log as follows:
  * ```json
- * { "message": "Started processing event", "event": { ... } }
- * { "message": "Finished processing event", "event": { ... } }
+ * { "message": "Started processing event", "eventId": "..." }
+ * { "message": "Finished processing event", "eventId": "..." }
  * ```
  */
 public inline fun <ReturnT> withLoggingContext(
-    logFields: List<LogField>,
+    logFields: Collection<LogField>,
     block: () -> ReturnT
 ): ReturnT {
-  return withLoggingContextInternal(logFields.toTypedArray(), block)
+  // Allows callers to use `block` as if it were in-place
+  contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+
+  // The logging context implementation assumes that the field collection isn't mutated. We can't
+  // guarantee this for `Collection`, so we must copy it to an array here. We don't need to do this
+  // defensive copy for the `vararg` overload, since Kotlin always creates a new array for varargs:
+  // https://discuss.kotlinlang.org/t/hidden-allocations-when-using-vararg-and-spread-operator/1640/2
+  val fieldArray = logFields.toTypedArray()
+
+  addFieldsToLoggingContext(fieldArray)
+  try {
+    return block()
+  } catch (e: Exception) {
+    addLoggingContextToException(e, fieldArray)
+    throw e
+  } finally {
+    removeFieldsFromLoggingContext(fieldArray)
+  }
 }
 
 /**
- * Shared implementation for the `vararg` and `List` versions of [withLoggingContext].
+ * Adds the fields from an existing logging context to all logs made by a [Logger] in the context of
+ * the given [block]. This overload is designed to be used with [getCopyOfLoggingContext], to pass
+ * logging context between threads. If you want to add fields to the current thread's logging
+ * context, you should instead construct log fields with the [field]/[rawJsonField] functions, and
+ * pass them to one of the [withLoggingContext][withLoggingContext] overloads that take [LogField]s.
  *
- * This function must be kept internal, since [LoggingContext] assumes that the given array is not
- * modified from the outside. We uphold this invariant in both versions of [withLoggingContext]:
- * - For the `vararg` version: Varargs always give a new array to the called function, even when
- *   called with an existing array:
- *   https://discuss.kotlinlang.org/t/hidden-allocations-when-using-vararg-and-spread-operator/1640/2
- * - For the `List` version: Here we call [Collection.toTypedArray], which creates a new array.
+ * If you spawn threads using a `java.util.concurrent.ExecutorService`, you may instead use the
+ * `ExecutorService.inheritLoggingContext` extension function from this library, which passes
+ * logging context from parent to child for you.
  *
- * We could just call the `vararg` version of [withLoggingContext] from the `List` overload, since
- * you can pass an array to a function taking varargs. But this actually copies the array twice:
- * once in [Collection.toTypedArray], and again in the defensive copy that varargs make in Kotlin.
+ * If an exception is thrown from [block], then the given logging context is attached to the
+ * exception, and included in the log output when the exception is logged. That way, we don't lose
+ * logging context when an exception escapes the context scope.
+ *
+ * ### Example
+ *
+ * Scenario: We store an updated order in a database, and then want to asynchronously update
+ * statistics for the order.
+ *
+ * ```
+ * import no.liflig.logging.field
+ * import no.liflig.logging.getCopyOfLoggingContext
+ * import no.liflig.logging.getLogger
+ * import no.liflig.logging.withLoggingContext
+ * import kotlin.concurrent.thread
+ *
+ * private val log = getLogger()
+ *
+ * class OrderService(
+ *     private val orderRepository: OrderRepository,
+ *     private val statisticsService: StatisticsService,
+ * ) {
+ *   fun updateOrder(order: Order) {
+ *     // This is the default withLoggingContext overload, adding context to the current thread
+ *     withLoggingContext(field("order", order)) {
+ *       orderRepository.update(order)
+ *       updateStatistics(order)
+ *     }
+ *   }
+ *
+ *   // In this scenario, we don't want updateStatistics to block updateOrder, so we spawn a thread.
+ *   //
+ *   // But we want to log if it fails, and include the logging context from the parent thread.
+ *   private fun updateStatistics(order: Order) {
+ *     // We call getCopyOfLoggingContext here, to copy the context fields from the parent thread
+ *     val parentContext = getCopyOfLoggingContext()
+ *
+ *     thread {
+ *       // We then pass the parent context to withLoggingContext here in the child thread.
+ *       // This uses the overload that takes an existing logging context
+ *       withLoggingContext(parentContext) {
+ *         try {
+ *           statisticsService.orderUpdated(order)
+ *         } catch (e: Exception) {
+ *           // This log will get the "order" field from the parent logging context
+ *           log.error(e) { "Failed to update order statistics" }
+ *         }
+ *       }
+ *     }
+ *   }
+ * }
+ * ```
  */
-@PublishedApi
-internal inline fun <ReturnT> withLoggingContextInternal(
-    logFields: Array<out LogField>,
+public inline fun <ReturnT> withLoggingContext(
+    context: LoggingContext,
     block: () -> ReturnT
 ): ReturnT {
-  val overwrittenFields = LoggingContext.addFieldsStatic(logFields)
+  // Allows callers to use `block` as if it were in-place
+  contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+
+  addExistingContextFieldsToLoggingContext(context)
   try {
     return block()
+  } catch (e: Exception) {
+    addExistingLoggingContextToException(e, context)
+    throw e
   } finally {
-    LoggingContext.removeFieldsStatic(logFields, overwrittenFields)
+    removeExistingContextFieldsFromLoggingContext(context)
   }
 }
 
@@ -195,8 +304,8 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  *
  * ```
  * import no.liflig.logging.field
+ * import no.liflig.logging.getCopyOfLoggingContext
  * import no.liflig.logging.getLogger
- * import no.liflig.logging.getLoggingContext
  * import no.liflig.logging.withLoggingContext
  * import kotlin.concurrent.thread
  *
@@ -216,14 +325,14 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  *   // In this scenario, we don't want updateStatistics to block updateOrder, so we spawn a thread.
  *   //
  *   // But we want to log if it fails, and include the logging context from the parent thread.
- *   // This is where getLoggingContext comes in.
+ *   // This is where getCopyOfLoggingContext comes in.
  *   private fun updateStatistics(order: Order) {
- *     // We call getLoggingContext here, to copy the context fields from the parent thread
- *     val loggingContext = getLoggingContext()
+ *     // We call getCopyOfLoggingContext here, to copy the context fields from the parent thread
+ *     val parentContext = getCopyOfLoggingContext()
  *
  *     thread {
  *       // We then pass the parent context to withLoggingContext here in the child thread
- *       withLoggingContext(loggingContext) {
+ *       withLoggingContext(parentContext) {
  *         try {
  *           statisticsService.orderUpdated(order)
  *         } catch (e: Exception) {
@@ -236,279 +345,699 @@ internal inline fun <ReturnT> withLoggingContextInternal(
  * }
  * ```
  */
-public fun getLoggingContext(): List<LogField> {
-  return LoggingContext.getFieldList()
+public fun getCopyOfLoggingContext(): LoggingContext {
+  val contextMap = MDC.getCopyOfContextMap()
+  if (contextMap.isNullOrEmpty()) {
+    return EMPTY_LOGGING_CONTEXT
+  }
+
+  val contextState = LoggingContextState.get().copy()
+
+  return LoggingContext(contextMap, contextState)
 }
 
 /**
- * Thread-local log fields that will be included on every log within a given context.
+ * Wraps thread-local logging context fields (SLF4J's MDC context map).
  *
- * This object encapsulates SLF4J's [MDC] (Mapped Diagnostic Context), allowing the rest of our code
- * to not concern itself with SLF4J-specific APIs.
+ * This type is returned by [getCopyOfLoggingContext], and can be passed to one of the
+ * [withLoggingContext] overloads in order to copy logging context between threads.
  */
-@PublishedApi
-internal object LoggingContext {
-  // Kept for backwards compatibility (since we added `@JvmStatic` to `addFieldsStatic`, which is
-  // a binary-incompatible change). TODO: Once users have migrated, change this to `@JvmStatic`
-  // as well, and use it from `withLoggingContextInternal` (still needs to delegate to
-  // `addFieldsStatic`, since users' compiled inline code will still call that). Once users have
-  // migrated to that, we can then finally rename `addFieldsStatic` to just `addFields`, and remove
-  // this.
-  @PublishedApi
-  internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields =
-      addFieldsStatic(fields)
-
-  @PublishedApi
-  @JvmStatic
-  internal fun addFieldsStatic(fields: Array<out LogField>): OverwrittenContextFields {
-    var overwrittenFields = OverwrittenContextFields(null)
-
-    for (index in fields.indices) {
-      val field = fields[index]
-      val keyForLoggingContext = field.getKeyForLoggingContext()
-
-      // Skip duplicate keys in the field array
-      if (isDuplicateField(field, index, fields)) {
-        continue
-      }
-
-      var existingValue: String? = MDC.get(field.key)
-      when (existingValue) {
-        // If there is no existing entry for our key, we continue down to MDC.put
-        null -> {}
-        // If the existing value matches the value we're about to insert, we can skip inserting it
-        field.value -> continue
-        // If there is an existing entry that does not match our new field value, we add it to
-        // overwrittenFields so we can restore the previous value after our withLoggingContext scope
-        else -> {
-          overwrittenFields = overwrittenFields.set(index, field.key, existingValue, fields.size)
-          /**
-           * If we get a [JsonLogField] whose key matches a non-JSON field in the context, then we
-           * want to overwrite "key" with "key (json)" (adding [LOGGING_CONTEXT_JSON_KEY_SUFFIX] to
-           * identify the JSON value). But since "key (json)" does not match "key", calling
-           * `MDC.put` below will not overwrite the previous field, so we have to manually remove it
-           * here. The previous field will then be restored by [LoggingContext.removeFields] after
-           * the context exits.
-           */
-          if (field.key != keyForLoggingContext) {
-            MDC.remove(field.key)
-          }
-        }
-      }
-
-      /**
-       * [JsonLogField] adds a suffix to `keyForLoggingContext`, i.e. it will be different from
-       * [LogField.key]. In this case, we want to check existing context field values for both `key`
-       * _and_ `keyForLoggingContext`.
-       */
-      if (field.key != keyForLoggingContext && existingValue == null) {
-        existingValue = MDC.get(keyForLoggingContext)
-        when (existingValue) {
-          null -> {}
-          field.value -> continue
-          else -> {
-            overwrittenFields =
-                overwrittenFields.set(index, keyForLoggingContext, existingValue, fields.size)
-          }
-        }
-      }
-
-      MDC.put(keyForLoggingContext, field.value)
-    }
-
-    return overwrittenFields
+public class LoggingContext
+internal constructor(
+    internal val map: Map<String, String?>?,
+    internal val state: LoggingContextState,
+) {
+  internal fun isEmpty(): Boolean {
+    return map.isNullOrEmpty()
   }
 
-  // Kept for backwards compatibility (since we added `@JvmStatic` to `removeFieldsStatic`, which is
-  // a binary-incompatible change). TODO: Once users have migrated, change this to `@JvmStatic`
-  // as well, and use it from `withLoggingContextInternal` (still needs to delegate to
-  // `removeFieldsStatic`, since users' compiled inline code will still call that). Once users have
-  // migrated to that, we can then finally rename `removeFieldsStatic` to just `removeFields`, and
-  // remove this.
-  @PublishedApi
-  internal fun removeFields(
-      fields: Array<out LogField>,
-      overwrittenFields: OverwrittenContextFields
-  ) = removeFieldsStatic(fields, overwrittenFields)
+  internal fun getFields(): Array<out LogField>? {
+    if (map.isNullOrEmpty()) {
+      return null
+    }
+
+    val contextFields: Array<LogField?> = arrayOfNulls(map.size)
+    var index = 0
+    for ((key, value) in map) {
+      val field: LogField =
+          if (value == null) {
+            LogField(key, JSON_NULL_VALUE, isJson = true)
+          } else {
+            val isJson = state.isJsonField(key, value)
+            LogField(key, value, isJson)
+          }
+
+      contextFields[index] = field
+
+      index++
+    }
+
+    // Safe to cast here: We initialize `logFields` with `map.size`, and then add a log field for
+    // every entry in the map, so all elements in the array will be initialized
+    @Suppress("UNCHECKED_CAST")
+    return contextFields as Array<LogField>
+  }
+}
+
+/** Static field for the empty logging context, to avoid redundant re-instantiations. */
+internal val EMPTY_LOGGING_CONTEXT = LoggingContext(map = null, state = LoggingContextState.empty())
+
+@PublishedApi
+internal fun addFieldsToLoggingContext(fields: Array<out LogField>) {
+  var contextState = LoggingContextState.get()
+  val newFieldCount = fields.size
+
+  for (index in fields.indices) {
+    val field = fields[index]
+    val key = field.key
+    val value = field.value
+
+    // Skip duplicate keys in the field array
+    if (isDuplicateField(key, index, fields)) {
+      continue
+    }
+
+    val previousValue: String? = MDC.get(key)
+
+    MDC.put(key, value)
+
+    contextState = contextState.add(key, value, field.isJson, previousValue, newFieldCount)
+  }
+
+  contextState.saveAfterAddingFields()
+}
+
+@PublishedApi
+internal fun removeFieldsFromLoggingContext(fields: Array<out LogField>) {
+  val contextState = LoggingContextState.get()
+
+  for (index in fields.indices) {
+    val field = fields[index]
+    val key = field.key
+
+    // Skip duplicate keys, like we do in addFields
+    if (isDuplicateField(key, index, fields)) {
+      continue
+    }
+
+    val overwrittenValue = contextState.popKey(key)
+    if (overwrittenValue != null) {
+      MDC.put(key, overwrittenValue)
+    } else {
+      MDC.remove(key)
+    }
+  }
+
+  contextState.saveAfterRemovingFields()
+}
+
+private fun isDuplicateField(key: String, index: Int, fields: Array<out LogField>): Boolean {
+  for (previousFieldIndex in 0 until index) {
+    if (fields[previousFieldIndex].key == key) {
+      return true
+    }
+  }
+  return false
+}
+
+@PublishedApi
+internal fun addExistingContextFieldsToLoggingContext(existingContext: LoggingContext) {
+  val existingContextMap = existingContext.map
+  if (existingContextMap == null) {
+    return
+  }
+  val existingContextSize = existingContextMap.size
+
+  var currentState = LoggingContextState.get()
+
+  for ((key, value) in existingContextMap) {
+    if (value == null) {
+      continue
+    }
+
+    val previousValue: String? = MDC.get(key)
+
+    MDC.put(key, value)
+
+    val isJson = existingContext.state.isJsonField(key, value)
+    currentState =
+        currentState.add(key, value, isJson, previousValue, newFieldCount = existingContextSize)
+  }
+
+  currentState.saveAfterAddingFields()
+}
+
+/** Like [removeFieldsFromLoggingContext], but for [addExistingContextFieldsToLoggingContext]. */
+@PublishedApi
+internal fun removeExistingContextFieldsFromLoggingContext(existingContext: LoggingContext) {
+  val existingContextMap = existingContext.map
+  if (existingContextMap == null) {
+    return
+  }
+
+  val currentContextState = LoggingContextState.get()
+
+  for ((key, value) in existingContextMap) {
+    // To match `addExistingContextFieldsToLoggingContext`
+    if (value == null) {
+      continue
+    }
+
+    val overwrittenValue = currentContextState.popKey(key)
+    if (overwrittenValue != null) {
+      MDC.put(key, overwrittenValue)
+    } else {
+      MDC.remove(key)
+    }
+  }
+
+  currentContextState.saveAfterRemovingFields()
+}
+
+@PublishedApi
+internal fun addLoggingContextToException(
+    exception: Throwable,
+    contextFields: Array<out LogField>,
+) {
+  if (contextFields.isEmpty()) {
+    return
+  }
 
   /**
-   * Takes the array of overwritten field values returned by [LoggingContext.addFields], to restore
-   * the previous context values after the current context exits.
+   * If there's already an [ExceptionWithLoggingContext] or [LoggingContextProvider] in the
+   * exception tree, we can add these log fields to their existing logging context, instead of
+   * creating a new `LoggingContextProvider`.
    */
-  @PublishedApi
-  @JvmStatic
-  internal fun removeFieldsStatic(
-      fields: Array<out LogField>,
-      overwrittenFields: OverwrittenContextFields
-  ) {
-    for (index in fields.indices) {
-      val field = fields[index]
-      val keyForLoggingContext = field.getKeyForLoggingContext()
-
-      // Skip duplicate keys, like we do in addFields
-      if (isDuplicateField(field, index, fields)) {
-        continue
+  traverseExceptionTree(root = exception) { exception ->
+    when (exception) {
+      is ExceptionWithLoggingContext -> {
+        exception.addLoggingContext(contextFields)
+        return
       }
-
-      val overwrittenKey = overwrittenFields.getKey(index)
-      if (overwrittenKey != null) {
-        MDC.put(overwrittenKey, overwrittenFields.getValue(index))
-        /**
-         * If the overwritten key matched the current key in the logging context, then we don't want
-         * to call `MDC.remove` below (these may not always match for [JsonLogField] - see docstring
-         * over `MDC.remove` in [LoggingContext.addFields]).
-         */
-        if (overwrittenKey == keyForLoggingContext) {
-          continue
-        }
+      is LoggingContextProvider -> {
+        exception.addLoggingContext(contextFields)
+        return
       }
-
-      MDC.remove(keyForLoggingContext)
     }
   }
 
-  @JvmStatic
-  private fun isDuplicateField(field: LogField, index: Int, fields: Array<out LogField>): Boolean {
-    for (previousFieldIndex in 0 until index) {
-      if (fields[previousFieldIndex].key == field.key) {
-        return true
+  /**
+   * If there were no eligible exception to add the context to, we add a suppressed
+   * [LoggingContextProvider] - see its docstring for more on how this mechanism works.
+   */
+  exception.addSuppressed(LoggingContextProvider(contextFields))
+}
+
+@PublishedApi
+internal fun addExistingLoggingContextToException(
+    exception: Throwable,
+    existingContext: LoggingContext
+) {
+  val contextFields = existingContext.getFields()
+  if (contextFields != null) {
+    addLoggingContextToException(exception, contextFields)
+  }
+}
+
+/**
+ * We want to avoid duplicate field keys in the log output, and for newer fields to overwrite older
+ * fields if they have the same key. We already do this for context fields and for log fields, but
+ * separately - so if a log field and a context field have the same key, then they would both appear
+ * in the log output. A log field is always more recent than a context field, so in this case, we
+ * want the log field to overwrite the context field.
+ *
+ * This function handles this case: it goes through the given fields on a log event, and checks if
+ * any of their keys are already in the logging context. If there's a match, we remove that context
+ * field, saving it in [LoggingContextState] to be restored after the log with
+ * [restoreContextFieldsOverwrittenForLog].
+ *
+ * Users of this function should call this before the log, and wrap the log in a try/finally block,
+ * calling [restoreContextFieldsOverwrittenForLog] in the `finally` block.
+ */
+internal fun overwriteDuplicateContextFieldsForLog(logFields: MutableList<KeyValuePair>?) {
+  if (logFields == null) {
+    return
+  }
+
+  val totalFieldCount = logFields.size
+  if (totalFieldCount == 0) {
+    return
+  }
+
+  var contextState = LoggingContextState.get()
+
+  var removedFieldCount = 0
+  for (index in 0..(totalFieldCount - 1)) {
+    val field = logFields[index - removedFieldCount]
+    val key = field.key
+
+    val contextValue: String? = MDC.get(key)
+    if (contextValue == null) {
+      continue
+    }
+
+    // We use `toString()` here, since the field value when using this library will either be a
+    // `String` or a `RawJson` (whose `toString` returns the serialized JSON)
+    val fieldValue = field.value.toString()
+    if (fieldValue == contextValue) {
+      logFields.removeAt(index)
+      removedFieldCount++
+    } else {
+      MDC.remove(key)
+      contextState = contextState.storeFieldOverwrittenForLog(key, overwrittenValue = contextValue)
+    }
+  }
+
+  contextState.saveAfterAddingFields()
+}
+
+/** See [overwriteDuplicateContextFieldsForLog]. */
+internal fun restoreContextFieldsOverwrittenForLog() {
+  val contextState = LoggingContextState.get()
+
+  contextState.restoreFieldsOverwrittenForLog { key, overwrittenValue ->
+    MDC.put(key, overwrittenValue)
+  }
+
+  contextState.saveAfterRemovingFields()
+}
+
+/**
+ * We use SLF4J's MDC for logging context. We want to use that instead of managing our own logging
+ * context, so that our logging context can be included in logs made by other libraries that use
+ * SLF4J but not `liflig-logging`.
+ *
+ * MDC is implemented as a thread-local `HashMap<String, String?>`. This limits what we can put in
+ * the logging context to just String values. But in this library, we want to be able to put
+ * arbitrary JSON in the logging context, so that the [field] function can have the same interface
+ * as [LogBuilder.field]. Serialized JSON is a string, so we can put it in MDC, but the issue then
+ * is that the JSON will be escaped in the log output, since our log encoder does not expect MDC
+ * values to be JSON.
+ *
+ * So in order to support JSON field values in the logging context using MDC, we need 2 things:
+ * - A way to intercept writing of MDC entries in our log encoder, to write JSON values unescaped.
+ *     - `logstash-logback-encoder` (JSON encoder library for Logback) lets us do this, by
+ *       implementing the `MdcEntryWriter` interface. We do this in our `JsonContextFieldWriter` in
+ *       the `output.logback` subpackage.
+ *     - The downside is that users must explicitly add `JsonContextFieldWriter` to their Logback
+ *       config, but that's not too bad when we document it clearly in the README.
+ * - A way to track which logging context values are JSON.
+ *     - In a previous version of this library, we did this by adding a suffix to MDC keys that had
+ *       JSON values, and then we would check for the suffix in our `JsonContextFieldWriter`. If the
+ *       suffix was present, we could then write the value as unescaped JSON, and write the key
+ *       without the suffix. There were 3 downsides to this approach:
+ *         - We did not want to add this suffix if our users are not using `JsonContextFieldWriter`.
+ *           The logic for ensuring that was tricky, and led to the key suffix leaking out into the
+ *           logs in certain cases, which was not good.
+ *         - Having some MDC keys _with_ a suffix and some without greatly complicated our logic for
+ *           overwriting existing logging context entries with the same key, since there were 2
+ *           variants of the same context key (suffixed and non-suffixed).
+ *         - We had to add this suffix both when adding fields to the context, but also when
+ *           checking for fields. This caused quite a lot of allocations from runtime string
+ *           concatenation. A goal of this library is to make as few memory allocations as possible,
+ *           so this was not ideal.
+ *     - This class, `LoggingContextState`, is our new solution to this problem of tracking which
+ *       context values are JSON.
+ *         - It consists of a thread-local that lives side-by-side with SLF4J's MDC.
+ *         - Whenever we add fields to the logging context, we also add to this context state, where
+ *           we can track more state than what MDC allows us:
+ *             - Firstly, we have a field to mark whether a context value is JSON.
+ *             - Secondly, we can track _overwritten_ context values:
+ *                 - When a new key is put into MDC, any previous value associated with that key is
+ *                   overwritten, and gone.
+ *                 - But in our `withLoggingContext` function, we want such overwritten context
+ *                   values to be restored when the context scope exits, so that we don't lose outer
+ *                   context just because we entered an inner context.
+ *                 - To achieve this, we check for previous context values before adding a new field
+ *                   in `withLoggingContext`, and we find a previous value, we add it to this
+ *                   context state, so that we can restore it after the context scope.
+ *
+ * Because a logging context scope can live for a while, we want this context state to be as
+ * memory-efficient as possible. To do this, we implement it as an array of strings, instead of as
+ * an array of objects where we would have to allocate wrapper classes. Each field in the logging
+ * context takes up 4 elements in the array, as follows:
+ * 1. Key
+ * 2. Value
+ * 3. Marker for whether the field is JSON (see [LoggingContextState.JSON_FIELD_SENTINEL])
+ * 4. Overwritten value from previous logging context, to be restored (`null` if there was none)
+ *
+ * This lets us store the context state as compactly as possible.
+ */
+@JvmInline
+internal value class LoggingContextState
+private constructor(private val stateArray: Array<String?>?) {
+  /**
+   * Adds a field to the logging context state.
+   *
+   * If the context field array has not been initialized yet, we initialize it before setting the
+   * key/value, and return the new array. It is an error not to use the return value (unfortunately,
+   * [Kotlin can't disallow unused return values yet](https://youtrack.jetbrains.com/issue/KT-12719)).
+   *
+   * Remember to call [saveAfterAddingFields] after this to persist the changes.
+   */
+  internal fun add(
+      key: String,
+      value: String?,
+      isJson: Boolean,
+      overwrittenValue: String?,
+      newFieldCount: Int,
+  ): LoggingContextState {
+    if (newFieldCount <= 0) {
+      return this
+    }
+
+    var state = getOrInitializeState(newFieldCount)
+    var index = state.getAvailableIndex()
+    if (index == -1) {
+      // When we resize, the next available key index will be the size of the array before resizing
+      index = state.stateArray.size
+      state = state.resize(newFieldCount)
+    }
+
+    state.set(index, key, value, isJson, overwrittenValue)
+
+    return LoggingContextState(state.stateArray)
+  }
+
+  /**
+   * Removes the latest logging context field with the given key from the context state.
+   *
+   * Remember to call [saveAfterRemovingFields] after this to persist the changes.
+   *
+   * @return Previous overwritten value for the given key, if any (i.e., the same value passed as
+   *   `overwrittenValue` to [add]).
+   */
+  internal fun popKey(key: String): String? {
+    if (stateArray == null) {
+      return null
+    }
+
+    val state = InitializedState(stateArray)
+    state.forEachKeyReversed { index, stateKey ->
+      if (stateKey == key) {
+        val overwrittenValue = state.getOverwrittenValue(index)
+        state.remove(index)
+        return overwrittenValue
       }
     }
+
+    return null
+  }
+
+  /**
+   * Saves added fields to the current thread context state.
+   *
+   * This method must always be called after adding fields to the context, which include:
+   * - [add]
+   * - [storeFieldOverwrittenForLog]
+   *
+   * We don't automatically call this at the end of each of these methods, as we typically want to
+   * add multiple fields in a row, so we don't need to save to the thread-local every time.
+   *
+   * See [saveAfterRemovingFields] for why we have two separate save methods.
+   */
+  internal fun saveAfterAddingFields() {
+    if (stateArray != null) {
+      setThreadLoggingContextState(stateArray)
+    }
+  }
+
+  /**
+   * Saves this context state, with fields removed, to the current thread context.
+   *
+   * This method must always be called after removing fields from the context, which include:
+   * - [popKey]
+   * - [restoreFieldsOverwrittenForLog]
+   *
+   * We don't automatically call this at the end of each of these methods, as we typically want to
+   * remove multiple fields in a row, so we don't need to save to the thread-local every time.
+   *
+   * The reason for having a separate method for saving after _removing_ fields, is that we want to
+   * check if the state array is empty after removing fields. If it is, we want to allow that memory
+   * to be reclaimed, so we clear the thread-local.
+   */
+  internal fun saveAfterRemovingFields() {
+    if (stateArray == null || InitializedState(stateArray).isEmpty()) {
+      clearThreadLoggingContextState()
+    } else {
+      setThreadLoggingContextState(stateArray)
+    }
+  }
+
+  internal fun isJsonField(key: String, value: String): Boolean {
+    if (stateArray == null) {
+      return false
+    }
+
+    val state = InitializedState(stateArray)
+    state.forEachKeyReversed { index, stateKey ->
+      if (stateKey == key) {
+        val stateValue = state.getValue(index)
+        val isJson = state.isJson(index)
+        return isJson && stateValue == value
+      }
+    }
+
     return false
   }
 
-  @JvmStatic
-  internal fun contains(field: LogField): Boolean {
-    val existingValue: String? = MDC.get(field.getKeyForLoggingContext())
-    return existingValue == field.value
+  /**
+   * See [overwriteDuplicateContextFieldsForLog] for why we use this.
+   *
+   * If the context field array has not been initialized yet, we initialize it before setting the
+   * key/value, and return the new array. It is an error not to use the return value (unfortunately,
+   * [Kotlin can't disallow unused return values yet](https://youtrack.jetbrains.com/issue/KT-12719)).
+   *
+   * Remember to call [saveAfterAddingFields] after this to persist changes.
+   */
+  internal fun storeFieldOverwrittenForLog(
+      key: String,
+      overwrittenValue: String
+  ): LoggingContextState {
+    return add(
+        key = key,
+        value = null,
+        isJson = false,
+        overwrittenValue = overwrittenValue,
+        newFieldCount = 1,
+    )
   }
 
-  @JvmStatic
-  internal fun getFieldList(): List<LogField> {
-    val fieldMap = getFieldMap()
-    if (fieldMap.isNullOrEmpty()) {
-      return emptyList()
+  /**
+   * See [overwriteDuplicateContextFieldsForLog] for why we use this.
+   *
+   * Remember to call [saveAfterRemovingFields] after this to persist changes.
+   */
+  internal inline fun restoreFieldsOverwrittenForLog(
+      // `crossinline` because we don't want non-local returns in this lambda, to ensure that we
+      // call `state.remove` after the action
+      crossinline action: (key: String, overwrittenValue: String) -> Unit
+  ) {
+    if (stateArray == null) {
+      return
     }
 
-    val fieldList = ArrayList<LogField>(getNonNullFieldCount(fieldMap))
-    mapFieldMapToList(fieldMap, fieldList)
-    return fieldList
-  }
-
-  @JvmStatic
-  internal fun combineFieldListWithContextFields(fields: List<LogField>): List<LogField> {
-    val contextFields = getFieldMap()
-
-    // If logging context is empty, we just use the given field list, to avoid allocating an
-    // additional list
-    if (contextFields.isNullOrEmpty()) {
-      return fields
-    }
-
-    val combinedFields = ArrayList<LogField>(fields.size + getNonNullFieldCount(contextFields))
-
-    // Add exception log fields first, so they show first in the log output
-    combinedFields.addAll(fields)
-    mapFieldMapToList(contextFields, target = combinedFields)
-    return combinedFields
-  }
-
-  @JvmStatic
-  internal fun getFieldMap(): Map<String, String?>? {
-    return MDC.getCopyOfContextMap()
-  }
-
-  @JvmStatic
-  private fun mapFieldMapToList(fieldMap: Map<String, String?>, target: ArrayList<LogField>) {
-    for ((key, value) in fieldMap) {
-      if (value == null) {
-        continue
+    val state = InitializedState(stateArray)
+    state.forEachKeyReversed { index, key ->
+      val value = state.getValue(index)
+      // Fields overwritten for log will always be at the end of the array, and since we iterate
+      // in reverse, we can stop iterating once we get to a field with non-null value
+      if (value != null) {
+        return
       }
 
-      target.add(createLogFieldFromContext(key, value))
+      val overwrittenValue = state.getOverwrittenValue(index)
+      if (overwrittenValue != null) {
+        action(key, overwrittenValue)
+        state.remove(index)
+      }
     }
   }
 
-  @JvmStatic
-  private fun getNonNullFieldCount(fieldMap: Map<String, String?>): Int {
-    return fieldMap.count { field -> field.value != null }
+  internal fun copy(): LoggingContextState {
+    if (stateArray == null) {
+      return this
+    }
+
+    val emptyFields = InitializedState(stateArray).countEmptyFields()
+
+    val newSize = stateArray.size - emptyFields * ELEMENTS_PER_FIELD
+    return LoggingContextState(stateArray.copyOf(newSize = newSize))
+  }
+
+  private fun getOrInitializeState(newFieldCount: Int): InitializedState {
+    return if (stateArray != null) {
+      InitializedState(stateArray)
+    } else {
+      InitializedState(arrayOfNulls(size = newFieldCount * ELEMENTS_PER_FIELD))
+    }
+  }
+
+  /**
+   * Helper class for a [LoggingContextState] where we know the state array is initialized
+   * (non-null). This lets us avoid redundant null checks.
+   *
+   * Since this is a `value class` (same as [LoggingContextState]), wrapping the same array, there's
+   * no allocation made when instantiating this.
+   */
+  @JvmInline
+  internal value class InitializedState(internal val stateArray: Array<String?>) {
+    internal fun set(
+        index: StateKeyIndex,
+        key: String?,
+        value: String?,
+        isJson: Boolean,
+        overwrittenValue: String?,
+    ) {
+      val isJsonValue = if (isJson) JSON_FIELD_SENTINEL else null
+      stateArray[index] = key
+      stateArray[index + 1] = value
+      stateArray[index + 2] = isJsonValue
+      stateArray[index + 3] = overwrittenValue
+    }
+
+    internal fun getKey(index: StateKeyIndex): String? {
+      return stateArray[index]
+    }
+
+    internal fun getValue(index: StateKeyIndex): String? {
+      return stateArray[index + 1]
+    }
+
+    internal fun isJson(index: StateKeyIndex): Boolean {
+      /**
+       * See [LoggingContextState.JSON_FIELD_SENTINEL] for why we use referential equality (`===`)
+       * here.
+       */
+      return stateArray[index + 2] === JSON_FIELD_SENTINEL
+    }
+
+    internal fun getOverwrittenValue(index: StateKeyIndex): String? {
+      return stateArray[index + 3]
+    }
+
+    internal fun remove(index: StateKeyIndex) {
+      stateArray.fill(element = null, fromIndex = index, toIndex = index + 3)
+    }
+
+    /** Returns -1 if no available index. */
+    internal fun getAvailableIndex(): StateKeyIndex {
+      var availableIndex = -1
+      forEachKeyIndexReversed { index ->
+        if (getKey(index) == null) {
+          availableIndex = index
+        } else {
+          return availableIndex
+        }
+      }
+      return availableIndex
+    }
+
+    internal fun resize(newFieldCount: Int): InitializedState {
+      val newState = arrayOfNulls<String?>(stateArray.size + newFieldCount * ELEMENTS_PER_FIELD)
+
+      stateArray.copyInto(newState)
+
+      return InitializedState(newState)
+    }
+
+    internal fun isEmpty(): Boolean {
+      forEachKeyReversed { _, _ ->
+        // This function iterates over non-null keys, so if we get a single hit, then we know we're
+        // not empty
+        return false
+      }
+      return true
+    }
+
+    internal fun countEmptyFields(): Int {
+      var emptyFields = 0
+      forEachKeyIndexReversed { index ->
+        if (getKey(index) == null) {
+          emptyFields++
+        } else {
+          return emptyFields
+        }
+      }
+      return emptyFields
+    }
+
+    internal inline fun forEachKeyReversed(action: (index: StateKeyIndex, key: String) -> Unit) {
+      forEachKeyIndexReversed { index ->
+        val key = getKey(index)
+        if (key != null) {
+          action(index, key)
+        }
+      }
+    }
+
+    internal inline fun forEachKeyIndexReversed(action: (index: StateKeyIndex) -> Unit) {
+      val size = stateArray.size
+      if (size < ELEMENTS_PER_FIELD) {
+        return
+      }
+
+      var index = size - ELEMENTS_PER_FIELD
+      while (index >= 0) {
+        action(index)
+
+        index -= ELEMENTS_PER_FIELD
+      }
+    }
+  }
+
+  internal companion object {
+    @JvmStatic
+    internal fun get(): LoggingContextState {
+      return LoggingContextState(getThreadLoggingContextState())
+    }
+
+    @JvmStatic
+    internal fun empty(): LoggingContextState {
+      return LoggingContextState(null)
+    }
+
+    /** See [LoggingContextState]. */
+    private const val ELEMENTS_PER_FIELD = 4
+
+    /**
+     * A sentinel value to mark whether a logging context field is JSON. We use a sentinel String
+     * object for this instead of a boolean, because we want the [LoggingContextState] array to be
+     * an array of Strings (since all the other values in the context state are Strings, and we
+     * don't want to do casting).
+     *
+     * We don't use `const` here, since we want to be 100% sure that we use the same string
+     * reference when inserting into the state array as when we check for this value, so we can use
+     * faster reference equality (`===`) instead of structural equality (`==`).
+     */
+    @Suppress("MayBeConstant") private val JSON_FIELD_SENTINEL: String = "JSON"
   }
 }
 
 /**
- * Fields (key/value pairs) that were overwritten by [LoggingContext.addFields], passed to
- * [LoggingContext.removeFields] so we can restore the previous field values after the current
- * logging context exits.
+ * See [LoggingContextState].
  *
- * We want this object to be as efficient as possible, since it will be kept around for the whole
- * span of a [withLoggingContext] scope, which may last a while. To support this goal, we:
- * - Use an array, to store the fields as compactly as possible
- *     - We store key/values inline, alternating - so an initialized array will look like:
- *       `key1-value1-key2-value2`
- *     - We initialize the array to twice the size of the current logging context fields, since we
- *       store 2 elements (key/value) for every field in the current context. This is not a concern,
- *       since there will typically be few elements in the context, and storing `null`s in the array
- *       does not take up much space.
- * - Initialize the array to `null`, so we don't allocate anything for the common case of there
- *   being no overwritten fields
- * - Use an inline value class, so we don't allocate a redundant wrapper object
- *     - To avoid the array being boxed, we always use this object as its concrete type. We also
- *       make the `fields` array nullable instead of the outer object, as making the outer object
- *       nullable boxes it (like `Int` and `Int?`). See
- *       [Kotlin docs](https://kotlinlang.org/docs/inline-classes.html#representation) for more on
- *       when inline value classes are boxed.
+ * We store the array directly here instead of storing a [LoggingContextState] object, because value
+ * classes are boxed when used as generics, and we want to avoid such redundant allocations (see
+ * [Kotlin docs](https://kotlinlang.org/docs/inline-classes.html#representation) for more on value
+ * class boxing).
  */
-@JvmInline
-internal value class OverwrittenContextFields(private val fields: Array<String?>?) {
-  /**
-   * If the overwritten context field array has not been initialized yet, we initialize it before
-   * setting the key/value, and return the new array. It is an error not to use the return value
-   * (unfortunately,
-   * [Kotlin can't disallow unused return values yet](https://youtrack.jetbrains.com/issue/KT-12719)).
-   */
-  internal fun set(
-      index: Int,
-      key: String,
-      value: String,
-      totalFields: Int
-  ): OverwrittenContextFields {
-    val fields = this.fields ?: arrayOfNulls(totalFields * 2)
-    fields[index * 2] = key
-    fields[index * 2 + 1] = value
-    return OverwrittenContextFields(fields)
-  }
+private val THREAD_LOGGING_CONTEXT_STATE = ThreadLocal<Array<String?>?>()
 
-  internal fun getKey(index: Int): String? {
-    return fields?.get(index * 2)
-  }
-
-  internal fun getValue(index: Int): String? {
-    return fields?.get(index * 2 + 1)
-  }
+internal fun getThreadLoggingContextState(): Array<String?>? {
+  return THREAD_LOGGING_CONTEXT_STATE.get()
 }
 
-/** Adds the given map of log fields to the logging context for the scope of the given [block]. */
-internal inline fun <ReturnT> withLoggingContextMap(
-    fieldMap: Map<String, String?>,
-    block: () -> ReturnT
-): ReturnT {
-  val previousFieldMap = LoggingContext.getFieldMap()
-  if (previousFieldMap != null) {
-    MDC.setContextMap(previousFieldMap + fieldMap)
-  } else {
-    MDC.setContextMap(fieldMap)
-  }
-
-  try {
-    return block()
-  } finally {
-    if (previousFieldMap != null) {
-      MDC.setContextMap(previousFieldMap)
-    } else {
-      MDC.clear()
-    }
-  }
+internal fun setThreadLoggingContextState(stateArray: Array<String?>) {
+  THREAD_LOGGING_CONTEXT_STATE.set(stateArray)
 }
+
+internal fun clearThreadLoggingContextState() {
+  THREAD_LOGGING_CONTEXT_STATE.remove()
+}
+
+/** A valid index for a key in the [LoggingContextState] array. */
+private typealias StateKeyIndex = Int
 
 /**
  * Wraps an [ExecutorService] in a new implementation that copies logging context fields (from
@@ -582,26 +1111,26 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
     // Copy context fields here, to get the logging context of the parent thread.
     // We then pass this to withLoggingContext in the returned Callable below, which will be invoked
     // in the child thread, thus inheriting the parent's context fields.
-    val contextFields = LoggingContext.getFieldMap()
+    val parentLoggingContext = getCopyOfLoggingContext()
 
-    if (contextFields.isNullOrEmpty()) {
+    if (parentLoggingContext.isEmpty()) {
       return callable
     }
 
-    return Callable { withLoggingContextMap(contextFields) { callable.call() } }
+    return Callable { withLoggingContext(parentLoggingContext) { callable.call() } }
   }
 
   private fun wrapRunnable(runnable: Runnable): Runnable {
     // Copy context fields here, to get the logging context of the parent thread.
     // We then pass this to withLoggingContext in the returned Runnable below, which will be invoked
     // in the child thread, thus inheriting the parent's context fields.
-    val contextFields = LoggingContext.getFieldMap()
+    val parentLoggingContext = getCopyOfLoggingContext()
 
-    if (contextFields.isNullOrEmpty()) {
+    if (parentLoggingContext.isEmpty()) {
       return runnable
     }
 
-    return Runnable { withLoggingContextMap(contextFields) { runnable.run() } }
+    return Runnable { withLoggingContext(parentLoggingContext) { runnable.run() } }
   }
 
   override fun execute(command: Runnable) {

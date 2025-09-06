@@ -1,6 +1,10 @@
 package no.liflig.logging
 
+import kotlin.reflect.KType
+import kotlin.reflect.typeOf
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.serializer
+import org.slf4j.Logger as Slf4jLogger
 
 /**
  * Class used in the logging methods on [Logger], allowing you to add structured key-value data to
@@ -29,9 +33,8 @@ import kotlinx.serialization.SerializationStrategy
  */
 @JvmInline // Inline value class, to wrap the underlying log event without overhead
 public value class LogBuilder
-@PublishedApi
 internal constructor(
-    @PublishedApi internal val logEvent: LogEvent,
+    internal val logEvent: LogEvent,
 ) {
   /**
    * Adds a [log field][LogField] (structured key-value data) to the log.
@@ -45,9 +48,8 @@ internal constructor(
    * serialization fails, we fall back to calling `toString()` on the value.
    *
    * If you want to specify the serializer for the value explicitly, you can call the overload of
-   * this method that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy]
-   * as a third parameter. That is also useful for cases where you can't call this method with a
-   * reified type parameter.
+   * this method that takes a [SerializationStrategy] as a third parameter. That is also useful for
+   * cases where you can't call this method with a reified type parameter.
    *
    * If you have a value that is already serialized, you should use [rawJsonField] instead.
    *
@@ -60,7 +62,7 @@ internal constructor(
    * private val log = getLogger()
    *
    * fun example() {
-   *   val event = Event(id = 1001, type = EventType.ORDER_PLACED)
+   *   val event = Event(id = 1000, type = EventType.ORDER_PLACED)
    *
    *   log.info {
    *     field("event", event)
@@ -82,7 +84,7 @@ internal constructor(
    * {
    *   "message": "Processing event",
    *   "event": {
-   *     "id": 1001,
+   *     "id": 1000,
    *     "type": "ORDER_PLACED"
    *   },
    *   // ...timestamp etc.
@@ -100,12 +102,55 @@ internal constructor(
    * - `java.math.BigDecimal`
    */
   public inline fun <reified ValueT> field(key: String, value: ValueT) {
-    if (!logEvent.isFieldKeyAdded(key)) {
-      encodeFieldValue(
-          value,
-          onJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
-          onString = { stringValue -> logEvent.addStringField(key, stringValue) },
-      )
+    try {
+      addLogFieldOfType(key, value, typeOf<ValueT>())
+    } catch (_: Exception) {
+      // Falls back to `toString()` if serialization fails
+      addStringLogField(key, value)
+    }
+  }
+
+  /**
+   * We split this out from [field] to reduce the amount of inlined code (more inlined code ->
+   * bigger code size -> possibly worse performance, and also more internal API that must be exposed
+   * with `@PublishedApi`).
+   */
+  @PublishedApi
+  internal fun addLogFieldOfType(
+      key: String,
+      value: Any?,
+      valueType: KType,
+  ) {
+    when {
+      /** See [JSON_NULL_VALUE] for why we handle nulls like this. */
+      value == null -> {
+        logEvent.addJsonField(key, JSON_NULL_VALUE)
+      }
+      // Special case for String, to avoid redundant serialization
+      value is String -> {
+        logEvent.addStringField(key, value)
+      }
+      // Special case for common types that kotlinx.serialization doesn't handle by default
+      fieldValueShouldUseToString(value) -> {
+        logEvent.addStringField(key, value.toString())
+      }
+      // Try to serialize with kotlinx.serialization - if it throws an exception, the `field` method
+      // will catch it and fall back to `createStringLogField`
+      else -> {
+        val serializer = LOG_FIELD_JSON_FORMAT.serializersModule.serializer(valueType)
+        val serializedValue = LOG_FIELD_JSON_FORMAT.encodeToString(serializer, value)
+        logEvent.addJsonField(key, serializedValue)
+      }
+    }
+  }
+
+  /** `toString()` fallback for the log field value when [addLogFieldOfType] fails. */
+  @PublishedApi
+  internal fun addStringLogField(key: String, value: Any?) {
+    if (value == null) {
+      logEvent.addJsonField(key, JSON_NULL_VALUE)
+    } else {
+      logEvent.addStringField(key, value.toString())
     }
   }
 
@@ -121,9 +166,8 @@ internal constructor(
    * serialization fails, we fall back to calling `toString()` on the value.
    *
    * If you want to specify the serializer for the value explicitly, you can call the overload of
-   * this method that takes a [SerializationStrategy][kotlinx.serialization.SerializationStrategy]
-   * as a third parameter. That is also useful for cases where you can't call this method with a
-   * reified type parameter.
+   * this method that takes a [SerializationStrategy] as a third parameter. That is also useful for
+   * cases where you can't call this method with a reified type parameter.
    *
    * If you have a value that is already serialized, you should use [rawJsonField] instead.
    *
@@ -136,7 +180,7 @@ internal constructor(
    * private val log = getLogger()
    *
    * fun example() {
-   *   val event = Event(id = 1001, type = EventType.ORDER_PLACED)
+   *   val event = Event(id = 1000, type = EventType.ORDER_PLACED)
    *
    *   log.info {
    *     field("event", event)
@@ -158,7 +202,7 @@ internal constructor(
    * {
    *   "message": "Processing event",
    *   "event": {
-   *     "id": 1001,
+   *     "id": 1000,
    *     "type": "ORDER_PLACED"
    *   },
    *   // ...timestamp etc.
@@ -180,13 +224,16 @@ internal constructor(
       value: ValueT?,
       serializer: SerializationStrategy<ValueT>
   ) {
-    if (!logEvent.isFieldKeyAdded(key)) {
-      encodeFieldValueWithSerializer(
-          value,
-          serializer,
-          onJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
-          onString = { stringValue -> logEvent.addStringField(key, stringValue) },
-      )
+    try {
+      if (value == null) {
+        logEvent.addJsonField(key, JSON_NULL_VALUE)
+      } else {
+        val serializedValue = LOG_FIELD_JSON_FORMAT.encodeToString(serializer, value)
+        logEvent.addJsonField(key, serializedValue)
+      }
+    } catch (_: Exception) {
+      // Falls back to `toString()` if serialization fails
+      addStringLogField(key, value)
     }
   }
 
@@ -212,7 +259,7 @@ internal constructor(
    * private val log = getLogger()
    *
    * fun example() {
-   *   val eventJson = """{"id":1001,"type":"ORDER_PLACED"}"""
+   *   val eventJson = """{"id":1000,"type":"ORDER_PLACED"}"""
    *
    *   log.info {
    *     rawJsonField("event", eventJson)
@@ -225,7 +272,7 @@ internal constructor(
    * ```json
    * {
    *   "message": "Processing event",
-   *   "event": {"id":1001,"type":"ORDER_PLACED"},
+   *   "event": {"id":1000,"type":"ORDER_PLACED"},
    *   // ...timestamp etc.
    * }
    * ```
@@ -234,14 +281,12 @@ internal constructor(
    *   save the performance cost of validating it.
    */
   public fun rawJsonField(key: String, json: String, validJson: Boolean = false) {
-    if (!logEvent.isFieldKeyAdded(key)) {
-      validateRawJson(
-          json,
-          isValid = validJson,
-          onValidJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
-          onInvalidJson = { stringValue -> logEvent.addStringField(key, stringValue) },
-      )
-    }
+    validateRawJson(
+        json,
+        isValid = validJson,
+        onValidJson = { jsonValue -> logEvent.addJsonField(key, jsonValue) },
+        onInvalidJson = { stringValue -> logEvent.addStringField(key, stringValue) },
+    )
   }
 
   /**
@@ -249,58 +294,77 @@ internal constructor(
    * constructed field from the
    * [field][no.liflig.logging.field]/[rawJsonField][no.liflig.logging.rawJsonField] top-level
    * functions, that you want to add to a single log.
-   * - If you want to create a new field and add it to the log, you should instead call
+   * - If you want to create a new field and add it to the log, you should instead use
    *   [LogBuilder.field] to create the field in-place
-   * - If you want to add the field to all logs within a scope, you should instead use
+   * - If you want to add a field to all logs in a scope, you should instead use
    *   [withLoggingContext]
    */
   public fun addField(field: LogField) {
-    // Don't add fields with keys that have already been added
-    if (!logEvent.isFieldKeyAdded(field.key)) {
-      field.addToLogEvent(logEvent)
+    if (field.isJson) {
+      logEvent.addJsonField(field.key, field.value)
+    } else {
+      logEvent.addStringField(field.key, field.value)
     }
   }
 
   /**
-   * Adds the given [log fields][LogField] to the log. This is useful when you have a list of
+   * Adds the given [log fields][LogField] to the log. This is useful when you have a collection of
    * previously constructed fields from the
    * [field][no.liflig.logging.field]/[rawJsonField][no.liflig.logging.rawJsonField] top-level
    * functions, that you want to add to a single log.
-   * - If you want to create new fields and add them to the log, you should instead call
+   * - If you want to create new fields and add them to the log, you should instead use
    *   [LogBuilder.field] to create the fields in-place
-   * - If you want to add the fields to all logs within a scope, you should instead use
-   *   [withLoggingContext]
+   * - If you want to add fields to all logs in a scope, you should instead use [withLoggingContext]
    */
-  public fun addFields(fields: Iterable<LogField>) {
+  public fun addFields(fields: Collection<LogField>) {
+    for (field in fields) {
+      addField(field)
+    }
+  }
+
+  internal fun addFields(fields: Array<out LogField>) {
     for (field in fields) {
       addField(field)
     }
   }
 
   /**
-   * Checks if the log [cause] exception (or any of its own cause exceptions) implements the
-   * [HasLogFields] interface, and if so, adds those fields to the log.
+   * Checks if the log cause exception (or any of its own cause exceptions) implements the
+   * [HasLoggingContext] interface, and if so, adds those fields to the log.
    */
-  @PublishedApi
-  internal fun addFieldsFromCauseException(cause: Throwable) {
-    // The `cause` here is the log event cause exception. But this exception may itself have a
-    // `cause` exception, and that may have another one, and so on. We want to go through all these
-    // exceptions to look for log fields, so we re-assign this local variable as we iterate through.
-    var exception: Throwable? = cause
-    // Limit the depth of cause exceptions, so we don't expose ourselves to infinite loops.
-    // This can happen if:
-    // - exception1.cause -> exception2
-    // - exception2.cause -> exception3
-    // - exception3.cause -> exception1
-    // We set max depth to 10, which should be high enough to not affect real users.
-    var depth = 0
-    while (exception != null && depth < 10) {
-      if (exception is HasLogFields) {
-        addFields(exception.logFields)
-      }
+  internal fun setCause(cause: Throwable, logger: Slf4jLogger) {
+    logEvent.setCause(cause, logger, this)
 
-      exception = exception.cause
-      depth++
+    if (!logEvent.handlesExceptionTreeTraversal()) {
+      traverseExceptionTreeForLogFields(root = cause)
     }
   }
+
+  /**
+   * We keep this in a separate method from [setCause], because [traverseExceptionTree] is a big
+   * inline function, and we don't want it to blow up the code size of `setCause` for the common
+   * case of [LogEvent.handlesExceptionTreeTraversal] returning true.
+   */
+  private fun traverseExceptionTreeForLogFields(root: Throwable) {
+    traverseExceptionTree(root, action = ::addFieldsFromException)
+  }
+
+  internal fun addFieldsFromException(exception: Throwable) {
+    when (exception) {
+      is ExceptionWithLoggingContext -> {
+        exception.addFieldsToLog(this)
+      }
+      is LoggingContextProvider -> {
+        exception.addFieldsToLog(this)
+      }
+      is HasLoggingContext -> {
+        addFields(exception.logFields)
+      }
+    }
+  }
+}
+
+@PublishedApi
+internal fun createLogBuilder(level: LogLevel, logger: Logger): LogBuilder {
+  return LogBuilder(createLogEvent(level, logger.underlyingLogger))
 }

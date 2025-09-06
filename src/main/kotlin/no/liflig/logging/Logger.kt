@@ -57,10 +57,10 @@ import org.slf4j.LoggerFactory as Slf4jLoggerFactory
  * }
  * ```
  */
-@JvmInline // Inline value class, to avoid redundant indirection when we just wrap an SLF4J logger
+@JvmInline // Inline value class, to wrap the underlying platform logger without overhead
 public value class Logger
 internal constructor(
-    @PublishedApi internal val underlyingLogger: Slf4jLogger,
+    internal val underlyingLogger: Slf4jLogger,
 ) {
   /**
    * Calls the given lambda to build a log message, and logs it at [LogLevel.INFO], if enabled.
@@ -98,16 +98,15 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
-   *
-   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
-   *   which would drop the log.
    */
   public inline fun info(
       cause: Throwable? = null,
-      crossinline buildLog: LogBuilder.() -> String,
+      buildLog: LogBuilder.() -> String,
   ) {
-    if (underlyingLogger.isInfoEnabled()) {
-      log(LogLevel.INFO, cause, buildLog)
+    if (isInfoEnabled) {
+      val builder = createLogBuilder(LogLevel.INFO, this)
+      val message = builder.buildLog()
+      log(builder, message, cause)
     }
   }
 
@@ -151,16 +150,15 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
-   *
-   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
-   *   which would drop the log.
    */
   public inline fun warn(
       cause: Throwable? = null,
-      crossinline buildLog: LogBuilder.() -> String,
+      buildLog: LogBuilder.() -> String,
   ) {
-    if (underlyingLogger.isWarnEnabled()) {
-      log(LogLevel.WARN, cause, buildLog)
+    if (isWarnEnabled) {
+      val builder = createLogBuilder(LogLevel.WARN, this)
+      val message = builder.buildLog()
+      log(builder, message, cause)
     }
   }
 
@@ -204,16 +202,15 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
-   *
-   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
-   *   which would drop the log.
    */
   public inline fun error(
       cause: Throwable? = null,
-      crossinline buildLog: LogBuilder.() -> String,
+      buildLog: LogBuilder.() -> String,
   ) {
-    if (underlyingLogger.isErrorEnabled()) {
-      log(LogLevel.ERROR, cause, buildLog)
+    if (isErrorEnabled) {
+      val builder = createLogBuilder(LogLevel.ERROR, this)
+      val message = builder.buildLog()
+      log(builder, message, cause)
     }
   }
 
@@ -253,16 +250,15 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
-   *
-   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
-   *   which would drop the log.
    */
   public inline fun debug(
       cause: Throwable? = null,
-      crossinline buildLog: LogBuilder.() -> String,
+      buildLog: LogBuilder.() -> String,
   ) {
-    if (underlyingLogger.isDebugEnabled()) {
-      log(LogLevel.DEBUG, cause, buildLog)
+    if (isDebugEnabled) {
+      val builder = createLogBuilder(LogLevel.DEBUG, this)
+      val message = builder.buildLog()
+      log(builder, message, cause)
     }
   }
 
@@ -302,16 +298,15 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
-   *
-   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
-   *   which would drop the log.
    */
   public inline fun trace(
       cause: Throwable? = null,
-      crossinline buildLog: LogBuilder.() -> String,
+      buildLog: LogBuilder.() -> String,
   ) {
-    if (underlyingLogger.isTraceEnabled()) {
-      log(LogLevel.TRACE, cause, buildLog)
+    if (isTraceEnabled) {
+      val builder = createLogBuilder(LogLevel.TRACE, this)
+      val message = builder.buildLog()
+      log(builder, message, cause)
     }
   }
 
@@ -359,34 +354,30 @@ internal constructor(
    *
    *   The [LogBuilder] receiver lets you call [field][LogBuilder.field] in the scope of the lambda,
    *   to add structured key-value data to the log.
-   *
-   *   We mark the lambda as `crossinline`, so you don't accidentally do a non-local return in it,
-   *   which would drop the log.
    */
   public inline fun at(
       level: LogLevel,
       cause: Throwable? = null,
-      crossinline buildLog: LogBuilder.() -> String,
+      buildLog: LogBuilder.() -> String,
   ) {
     if (isEnabledFor(level)) {
-      log(level, cause, buildLog)
+      val builder = createLogBuilder(level, this)
+      val message = builder.buildLog()
+      log(builder, message, cause)
     }
   }
 
   @PublishedApi
-  internal inline fun log(
-      level: LogLevel,
+  internal fun log(
+      logBuilder: LogBuilder,
+      message: String,
       cause: Throwable?,
-      crossinline buildLog: LogBuilder.() -> String,
   ) {
-    val builder = LogBuilder(createLogEvent(level, cause, underlyingLogger))
-    val message = builder.buildLog()
     if (cause != null) {
-      // Call this after buildLog(), so cause exception fields don't overwrite LogBuilder fields
-      builder.addFieldsFromCauseException(cause)
+      logBuilder.setCause(cause, underlyingLogger)
     }
 
-    builder.logEvent.log(message, underlyingLogger)
+    logBuilder.logEvent.log(message, underlyingLogger)
   }
 
   /**
@@ -397,7 +388,7 @@ internal constructor(
    * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
    */
   public val isErrorEnabled: Boolean
-    inline get() = underlyingLogger.isErrorEnabled()
+    get() = underlyingLogger.isErrorEnabled()
 
   /**
    * Returns true if [LogLevel.WARN] is enabled for this logger.
@@ -407,7 +398,7 @@ internal constructor(
    * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
    */
   public val isWarnEnabled: Boolean
-    inline get() = underlyingLogger.isWarnEnabled()
+    get() = underlyingLogger.isWarnEnabled()
 
   /**
    * Returns true if [LogLevel.INFO] is enabled for this logger.
@@ -417,7 +408,7 @@ internal constructor(
    * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
    */
   public val isInfoEnabled: Boolean
-    inline get() = underlyingLogger.isInfoEnabled()
+    get() = underlyingLogger.isInfoEnabled()
 
   /**
    * Returns true if [LogLevel.DEBUG] is enabled for this logger.
@@ -427,7 +418,7 @@ internal constructor(
    * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
    */
   public val isDebugEnabled: Boolean
-    inline get() = underlyingLogger.isDebugEnabled()
+    get() = underlyingLogger.isDebugEnabled()
 
   /**
    * Returns true if [LogLevel.TRACE] is enabled for this logger.
@@ -437,7 +428,7 @@ internal constructor(
    * [Logback configuration docs](https://logback.qos.ch/manual/configuration.html#loggerElement)).
    */
   public val isTraceEnabled: Boolean
-    inline get() = underlyingLogger.isTraceEnabled()
+    get() = underlyingLogger.isTraceEnabled()
 
   /**
    * Returns true if the given log level is enabled for this logger.
@@ -492,20 +483,19 @@ internal constructor(
  * loggers in a generic manner.
  */
 public inline fun getLogger(): Logger {
+  // `MethodHandles.lookup().lookupClass()` returns the calling class. Since this function is
+  // inline, that will actually return the class that called `getLogger`, so we can use it to get
+  // the name of the caller. When called at file scope, the calling class will be the synthetic `Kt`
+  // class that Kotlin generates for the file, so we can use the file name in that case.
+  //
+  // This is the pattern that SLF4J recommends for instantiating loggers in a generic manner:
+  // https://www.slf4j.org/faq.html#declaration_pattern
   return getLogger(javaClass = MethodHandles.lookup().lookupClass())
 }
 
 @PublishedApi
 internal fun getLogger(javaClass: Class<*>): Logger {
   val name = normalizeLoggerName(javaClass.name)
-  return Logger(Slf4jLoggerFactory.getLogger(name))
-}
-
-@Deprecated(
-    "Replaced by zero-parameter getLogger() overload. You can search-and-replace 'getLogger {}' -> 'getLogger()' to update",
-)
-public fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
-  val name = normalizeLoggerName(emptyLambdaToGetName::class.qualifiedName)
   return Logger(Slf4jLoggerFactory.getLogger(name))
 }
 
@@ -574,7 +564,7 @@ public fun getLogger(name: String): Logger {
  * with minor changes. Licensed under
  * [Apache 2.0](https://github.com/oshai/kotlin-logging/blob/e9c6ec570cd503c626fca5878efcf1291d4125b7/LICENSE).
  */
-private fun normalizeLoggerName(name: String?): String {
+internal fun normalizeLoggerName(name: String?): String {
   return when {
     // We may get a null name from `KClass.qualifiedName` in the `getLogger(forClass: KClass<*>)`
     // overload. Although this should be rare (as it would only happen if the user somehow passed a
@@ -586,3 +576,13 @@ private fun normalizeLoggerName(name: String?): String {
     else -> name
   }
 }
+
+/**
+ * SLF4J has the concept of a "caller boundary": the fully qualified class name of the logger class
+ * that made the log. This is used by logger implementations, such as Logback, when the user enables
+ * "caller info": showing the location in the source code where the log was made. Logback then knows
+ * to exclude stack trace elements up to this caller boundary, since the user wants to see where in
+ * _their_ code the log was made, not the location in the logging library. In our case, our boundary
+ * is the [Logger] class.
+ */
+internal const val LOGGER_CLASS_NAME = "no.liflig.logging.Logger"

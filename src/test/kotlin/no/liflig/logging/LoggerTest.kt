@@ -14,9 +14,8 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.date.shouldBeBetween
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
-import java.lang.invoke.MethodHandles
 import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -27,14 +26,21 @@ import no.liflig.logging.testutils.LocationAwareSlf4jLogger
 import no.liflig.logging.testutils.PlainSlf4jLogger
 import no.liflig.logging.testutils.TestCase
 import no.liflig.logging.testutils.loggerInOtherFile
-import no.liflig.logging.testutils.parameterizedTest
+import no.liflig.logging.testutils.runTestCases
 import org.slf4j.LoggerFactory as Slf4jLoggerFactory
 import org.slf4j.event.KeyValuePair
 
 /**
- * We want to test all the different logger methods, on a variety of different loggers. In order to
- * share as much common code as possible, we define this `LoggerTestCase` class for testing expected
- * log output.
+ * We want to test all the different logger methods, on a variety of different loggers in different
+ * platforms. In order to share as much common code as possible, we define this `LoggerTestCase`
+ * class for testing expected log output. Each platform then defines:
+ * - A list of [loggerTestCases]
+ * - A [verifyLogOutput] function to verify the platform-specific log output
+ * - A [getTestLogger] function for getting a logger that only enables logs at a given level
+ * - A [resetLoggerTest] function for resetting any state between tests
+ *
+ * We use this here in the common [LoggerTest] class, so that we can define all common tests once,
+ * delegating to platform-specific implementations when necessary.
  */
 internal data class LoggerTestCase(
     override val name: String,
@@ -43,8 +49,16 @@ internal data class LoggerTestCase(
     val expectedCause: Throwable? = LoggerTest.TestInput.CAUSE,
     val expectedFields: List<LogField> =
         listOf(
-            StringLogField(LoggerTest.TestInput.FIELD_KEY_1, LoggerTest.TestInput.FIELD_VALUE_1),
-            JsonLogField(LoggerTest.TestInput.FIELD_KEY_2, """{"id":1001,"type":"ORDER_PLACED"}"""),
+            LogField(
+                key = LoggerTest.TestInput.FIELD_KEY_1,
+                value = LoggerTest.TestInput.FIELD_VALUE_1,
+                isJson = false,
+            ),
+            LogField(
+                key = LoggerTest.TestInput.FIELD_KEY_2,
+                value = """{"id":1000,"type":"ORDER_PLACED"}""",
+                isJson = true,
+            ),
         ),
     val shouldHaveCorrectFileLocation: Boolean = true,
 ) : TestCase
@@ -63,14 +77,14 @@ internal val loggerTestCases =
             "Location-aware SLF4J logger",
             logger = Logger(LocationAwareSlf4jLogger(LoggerTest.logbackLogger)),
             expectedMessage =
-                """Test message [key1=value1, key2={"id":1001,"type":"ORDER_PLACED"}]""",
+                """Test message [key1=value1, key2={"id":1000,"type":"ORDER_PLACED"}]""",
             expectedFields = emptyList(),
         ),
         LoggerTestCase(
             "Plain SLF4J logger",
             logger = Logger(PlainSlf4jLogger(LoggerTest.logbackLogger)),
             expectedMessage =
-                """Test message [key1=value1, key2={"id":1001,"type":"ORDER_PLACED"}]""",
+                """Test message [key1=value1, key2={"id":1000,"type":"ORDER_PLACED"}]""",
             expectedFields = emptyList(),
             // The plain SLF4J logger does not implement location-aware logging, so we don't
             // expect it to have correct file location
@@ -94,8 +108,16 @@ internal fun LoggerTestCase.verifyLogOutput(expectedLogLevel: LogLevel, block: (
   if (this.expectedCause == null) {
     logEvent.throwableProxy.shouldBeNull()
   } else {
-    val throwableProxy = logEvent.throwableProxy.shouldBeInstanceOf<ThrowableProxy>()
-    throwableProxy.throwable shouldBe this.expectedCause
+    val cause: Throwable =
+        when (val throwableProxy = logEvent.throwableProxy) {
+          is CustomLogbackThrowableProxy -> throwableProxy.throwable
+          is ThrowableProxy -> throwableProxy.throwable
+          else ->
+              throw IllegalStateException(
+                  "Unexpected ThrowableProxy type '${throwableProxy::class.qualifiedName}'",
+              )
+        }
+    cause shouldBe this.expectedCause
   }
 
   if (this.expectedFields.isEmpty()) {
@@ -104,13 +126,10 @@ internal fun LoggerTestCase.verifyLogOutput(expectedLogLevel: LogLevel, block: (
     logEvent.keyValuePairs.shouldContainExactly(
         this.expectedFields.map { field ->
           val expectedValue =
-              when (field) {
-                is StringLogField -> field.value
-                is JsonLogField -> RawJson(field.value)
-                else ->
-                    throw IllegalStateException(
-                        "Unrecognized log field type '${field::class.qualifiedName}'",
-                    )
+              if (field.isJson) {
+                ValidRawJson(field.value)
+              } else {
+                field.value
               }
           KeyValuePair(field.key, expectedValue)
         },
@@ -127,8 +146,17 @@ internal fun getTestLogger(level: LogLevel?): Logger {
   return Logger(LoggerTest.logbackLogger)
 }
 
+internal fun resetLoggerTest() {
+  LoggerTest.logAppender.list.clear()
+  LoggerTest.logbackLogger.level = LogbackLevel.TRACE
+}
+
 internal class LoggerTest {
+  private val loggerInsideClass = getLogger()
+
   companion object {
+    private val loggerOnCompanionObject = getLogger()
+
     /** We use a ListAppender from Logback here so we can inspect log events after logging. */
     val logAppender = ListAppender<ILoggingEvent>()
     val logbackLogger = Slf4jLoggerFactory.getLogger("LoggerTest") as LogbackLogger
@@ -139,16 +167,6 @@ internal class LoggerTest {
       logbackLogger.addAppender(logAppender)
       logbackLogger.level = LogbackLevel.TRACE
     }
-
-    private val loggerOnCompanionObject = getLogger()
-  }
-
-  private val loggerInsideClass = getLogger()
-
-  @AfterTest
-  fun reset() {
-    logAppender.list.clear()
-    logbackLogger.level = LogbackLevel.TRACE
   }
 
   /** Input passed to the [loggerTestCases] in the tests on this class. */
@@ -157,13 +175,18 @@ internal class LoggerTest {
     const val FIELD_KEY_1: String = "key1"
     const val FIELD_VALUE_1: String = "value1"
     const val FIELD_KEY_2: String = "key2"
-    val FIELD_VALUE_2: Event = Event(id = 1001, type = EventType.ORDER_PLACED)
+    val FIELD_VALUE_2: Event = Event(id = 1000, type = EventType.ORDER_PLACED)
     val CAUSE: Throwable? = Exception("Something went wrong")
+  }
+
+  @AfterTest
+  fun reset() {
+    resetLoggerTest()
   }
 
   @Test
   fun `info log`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.INFO) {
         test.logger.info(cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -176,7 +199,7 @@ internal class LoggerTest {
 
   @Test
   fun `warn log`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.WARN) {
         test.logger.warn(cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -189,7 +212,7 @@ internal class LoggerTest {
 
   @Test
   fun `error log`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.ERROR) {
         test.logger.error(cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -202,7 +225,7 @@ internal class LoggerTest {
 
   @Test
   fun `debug log`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.DEBUG) {
         test.logger.debug(cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -215,7 +238,7 @@ internal class LoggerTest {
 
   @Test
   fun `trace log`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.TRACE) {
         test.logger.trace(cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -228,7 +251,7 @@ internal class LoggerTest {
 
   @Test
   fun `info log using 'at' method`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.INFO) {
         test.logger.at(LogLevel.INFO, cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -241,7 +264,7 @@ internal class LoggerTest {
 
   @Test
   fun `warn log using 'at' method`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.WARN) {
         test.logger.at(LogLevel.WARN, cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -254,7 +277,7 @@ internal class LoggerTest {
 
   @Test
   fun `error log using 'at' method`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.ERROR) {
         test.logger.at(LogLevel.ERROR, cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -267,7 +290,7 @@ internal class LoggerTest {
 
   @Test
   fun `debug log using 'at' method`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.DEBUG) {
         test.logger.at(LogLevel.DEBUG, cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -280,7 +303,7 @@ internal class LoggerTest {
 
   @Test
   fun `trace log using 'at' method`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       test.verifyLogOutput(expectedLogLevel = LogLevel.TRACE) {
         test.logger.at(LogLevel.TRACE, cause = TestInput.CAUSE) {
           field(TestInput.FIELD_KEY_1, TestInput.FIELD_VALUE_1)
@@ -297,7 +320,7 @@ internal class LoggerTest {
    */
   @Test
   fun `log with no fields or exceptions`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::resetLoggerTest) { test ->
       val updatedTest =
           test.copy(
               expectedMessage = "Test",
@@ -401,8 +424,37 @@ internal class LoggerTest {
   }
 
   @Test
+  fun `lambda arguments to logger methods are inlined`() {
+    val log = getLogger()
+
+    // Non-local returns in lambdas are only allowed if the enclosing function is inline.
+    // So this will only compile if Logger's methods are inline, which is what we want to test here.
+    log.info {
+      return
+    }
+    log.warn {
+      return
+    }
+    log.error {
+      return
+    }
+    log.debug {
+      return
+    }
+    log.trace {
+      return
+    }
+  }
+
+  @Test
+  fun `LOGGER_CLASS_NAME has expected value`() {
+    val expectedName: String = Logger::class.qualifiedName.shouldNotBeNull()
+    LOGGER_CLASS_NAME shouldBe expectedName
+  }
+
+  @Test
   fun `log has expected file location`() {
-    parameterizedTest(loggerTestCases, afterEach = ::reset) { test ->
+    runTestCases(loggerTestCases, afterEach = ::reset) { test ->
       test.logger.info { "Test" }
 
       logAppender.list shouldHaveSize 1
@@ -423,45 +475,8 @@ internal class LoggerTest {
   }
 
   @Test
-  fun `log event caller boundaries have expected values`() {
-    LogbackLogEvent.FULLY_QUALIFIED_CLASS_NAME shouldBe "no.liflig.logging.LogbackLogEvent"
-    Slf4jLogEvent.FULLY_QUALIFIED_CLASS_NAME shouldBe "no.liflig.logging.Slf4jLogEvent"
-  }
-
-  @Test
   fun `Logback is loaded in tests`() {
     LOGBACK_IS_ON_CLASSPATH shouldBe true
-  }
-
-  @Test
-  fun `lambda arguments to logger methods are inlined`() {
-    // We verify that the lambdas are inlined by calling `lookupClass()` inside of them.
-    // If they are inlined, then the calling class should be this test class - otherwise, the
-    // calling class would be a generated class for the lambda.
-    log.info {
-      MethodHandles.lookup().lookupClass() shouldBe LoggerTest::class.java
-      "Test"
-    }
-    log.warn {
-      MethodHandles.lookup().lookupClass() shouldBe LoggerTest::class.java
-      "Test"
-    }
-    log.error {
-      MethodHandles.lookup().lookupClass() shouldBe LoggerTest::class.java
-      "Test"
-    }
-    log.debug {
-      MethodHandles.lookup().lookupClass() shouldBe LoggerTest::class.java
-      "Test"
-    }
-    log.trace {
-      MethodHandles.lookup().lookupClass() shouldBe LoggerTest::class.java
-      "Test"
-    }
-    log.at(LogLevel.INFO) {
-      MethodHandles.lookup().lookupClass() shouldBe LoggerTest::class.java
-      "Test"
-    }
   }
 }
 

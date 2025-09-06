@@ -7,38 +7,58 @@ import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
-import no.liflig.logging.jsonEncoder
+import kotlinx.serialization.json.JsonPrimitive
+import no.liflig.logging.LOG_FIELD_JSON_FORMAT
 
 internal data class LogOutput(
     /** String of all JSON-encoded log-event-specific fields from log output, in order. */
     val logFields: String,
     /**
-     * Map of context fields in the log output. We don't use a String here and verify order, since
-     * SLF4J's MDC (which we use for our logging context) uses a HashMap internally, which does not
-     * guarantee order.
+     * Map of context fields in the log output. The values here are either `String` or `JsonElement`
+     * (we map string JSON values to just `String`, so we don't have to wrap values in
+     * `JsonPrimitive` in all our tests).
+     *
+     * We don't use a String here and verify order, since SLF4J's MDC (which we use for our logging
+     * context) uses a HashMap internally, which does not guarantee order.
      */
-    val contextFields: Map<String, JsonElement>,
+    val contextFields: Map<String, Any>,
 )
 
 /**
- * Since we have configured Logback in resources/logback-test.xml to use the Logstash JSON encoder,
- * we can verify in our tests that user-provided log fields have the expected JSON output.
+ * Captures stdout and stderr in the scope of the given lambda, and parses it to [LogOutput].
+ *
+ * @param block We mark this lambda `crossinline` to prevent accidental non-local returns.
  */
-internal fun captureLogOutput(block: () -> Unit): LogOutput {
+internal inline fun captureLogOutput(crossinline block: () -> Unit): LogOutput {
+  val output = captureStdoutAndStderr(block)
+  return parseLogOutput(output)
+}
+
+internal inline fun captureStdoutAndStderr(crossinline block: () -> Unit): String {
   val originalStdout = System.out
+  val originalStderr = System.err
 
   // We redirect System.out to our own output stream, so we can capture the log output
   val outputStream = ByteArrayOutputStream()
-  System.setOut(PrintStream(outputStream))
+  val printStream = PrintStream(outputStream)
+  System.setOut(printStream)
+  System.setErr(printStream)
 
   try {
     block()
   } finally {
     System.setOut(originalStdout)
+    System.setErr(originalStderr)
   }
 
-  val logOutput = outputStream.toString("UTF-8")
+  return outputStream.toString("UTF-8")
+}
 
+/**
+ * Since we have configured Logback in resources/logback-test.xml to use the Logstash JSON encoder,
+ * we can parse the log output on that format here.
+ */
+internal fun parseLogOutput(logOutput: String): LogOutput {
   // We expect each call to captureLogFields to capture just a single log line, so it should only
   // contain 1 newline. If we get more, that is likely an error and should fail our tests.
   logOutput shouldContainOnlyOnce "\n"
@@ -88,7 +108,15 @@ internal fun captureLogOutput(block: () -> Unit): LogOutput {
 
   val contextFields =
       try {
-        jsonEncoder.decodeFromString<ContextFieldsInLogOutput>(logOutput).context
+        LOG_FIELD_JSON_FORMAT.decodeFromString<ContextFieldsInLogOutput>(logOutput)
+            .context
+            ?.mapValues { (_, jsonValue) ->
+              if (jsonValue is JsonPrimitive && jsonValue.isString) {
+                jsonValue.content
+              } else {
+                jsonValue
+              }
+            }
       } catch (_: Exception) {
         null
       }

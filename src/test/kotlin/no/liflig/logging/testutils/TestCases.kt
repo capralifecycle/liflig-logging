@@ -9,11 +9,12 @@ import io.kotest.assertions.withClue
  * If a test case implements [TestCase], then [TestCase.name] will be used - otherwise, the
  * `toString` representation of the test case is used.
  */
-internal inline fun <TestCaseT> parameterizedTest(
+internal inline fun <TestCaseT> runTestCases(
     testCases: Iterable<TestCaseT>,
-    beforeEach: () -> Unit = {},
-    afterEach: () -> Unit = {},
-    test: (TestCaseT) -> Unit
+    // `crossinline` to prevent early returns, which would cancel later test cases
+    crossinline beforeEach: () -> Unit = {},
+    crossinline afterEach: () -> Unit = {},
+    crossinline test: (TestCaseT) -> Unit
 ) {
   for ((index, testCase) in testCases.withIndex()) {
     beforeEach()
@@ -21,7 +22,7 @@ internal inline fun <TestCaseT> parameterizedTest(
       withClue(
           {
             val clue: String = if (testCase is TestCase) testCase.name else testCase.toString()
-            "Test Case ${index}: ${clue}"
+            "Test Case ${index + 1}: ${clue}"
           },
       ) {
         test(testCase)
@@ -33,8 +34,8 @@ internal inline fun <TestCaseT> parameterizedTest(
 }
 
 /**
- * When passed to [parameterizedTest], [name] will be used instead of `toString` to print failing
- * test cases.
+ * When passed to [runTestCases], [name] will be used instead of `toString` to print failing test
+ * cases.
  */
 internal interface TestCase {
   val name: String

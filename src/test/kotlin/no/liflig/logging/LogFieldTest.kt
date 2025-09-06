@@ -1,12 +1,13 @@
 package no.liflig.logging
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.math.BigDecimal
 import java.net.URI
 import java.net.URL
@@ -16,121 +17,254 @@ import kotlin.test.Test
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import no.liflig.logging.testutils.Event
 import no.liflig.logging.testutils.EventType
-import no.liflig.logging.testutils.TestCase
 import no.liflig.logging.testutils.captureLogOutput
-import no.liflig.logging.testutils.parameterizedTest
+import no.liflig.logging.testutils.runTestCases
 
 private val log = getLogger()
+
+/**
+ * This library provides 2 ways to construct log fields:
+ * - The [field] top-level function, returning a [LogField] (designed for [withLoggingContext])
+ * - The [LogBuilder.field] method, which constructs the field in-place on the log event
+ *
+ * We want to test both of these, with a variety of different inputs. To do this systematically, we
+ * make each log field test a parameterized test (see [runTestCases]), so every test runs with both
+ * ways of creating log fields.
+ */
+internal enum class LogFieldTestCase {
+  LOGBUILDER_METHOD,
+  TOP_LEVEL_CONSTRUCTOR;
+
+  inline fun <reified ValueT> addField(logBuilder: LogBuilder, key: String, value: ValueT) {
+    when (this) {
+      LOGBUILDER_METHOD -> {
+        logBuilder.field(key, value)
+      }
+      TOP_LEVEL_CONSTRUCTOR -> {
+        logBuilder.addField(field(key, value))
+      }
+    }
+  }
+
+  fun <ValueT : Any> addFieldWithSerializer(
+      logBuilder: LogBuilder,
+      key: String,
+      value: ValueT?,
+      serializer: SerializationStrategy<ValueT>,
+  ) {
+    when (this) {
+      LOGBUILDER_METHOD -> {
+        logBuilder.field(key, value, serializer)
+      }
+      TOP_LEVEL_CONSTRUCTOR -> {
+        logBuilder.addField(field(key, value, serializer))
+      }
+    }
+  }
+}
+
+/**
+ * Same as [LogFieldTestCase], but for [rawJsonField]/[LogBuilder.rawJsonField], and we also want to
+ * test the [rawJson] function for creating log field values from raw JSON.
+ */
+internal enum class RawJsonTestCase {
+  LOGBUILDER_METHOD,
+  TOP_LEVEL_CONSTRUCTOR,
+  RAW_JSON_VALUE_FUNCTION;
+
+  fun addRawJsonField(logBuilder: LogBuilder, key: String, json: String, validJson: Boolean) {
+    when (this) {
+      LOGBUILDER_METHOD -> {
+        logBuilder.rawJsonField(key, json, validJson)
+      }
+      TOP_LEVEL_CONSTRUCTOR -> {
+        logBuilder.addField(rawJsonField(key, json, validJson))
+      }
+      RAW_JSON_VALUE_FUNCTION -> {
+        logBuilder.addField(field(key, rawJson(json, validJson)))
+      }
+    }
+  }
+}
 
 internal class LogFieldTest {
   @Test
   fun `basic log field test`() {
-    val output = captureLogOutput {
-      log.info {
-        field("key", "value")
-        "Test"
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val output = captureLogOutput {
+        log.info {
+          test.addField(this, "key", "value")
+          "Test"
+        }
       }
-    }
 
-    output.logFields shouldBe
-        """
-          "key":"value"
-        """
-            .trimIndent()
+      output.logFields shouldBe
+          """
+            "key":"value"
+          """
+              .trimIndent()
+    }
   }
 
   @Test
   fun `log field with Serializable object`() {
-    val event = Event(id = 1001, type = EventType.ORDER_PLACED)
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val event = Event(id = 1000, type = EventType.ORDER_PLACED)
 
-    val output = captureLogOutput {
-      log.info {
-        field("event", event)
-        "Test"
+      val output = captureLogOutput {
+        log.info {
+          test.addField(this, "event", event)
+          "Test"
+        }
       }
-    }
 
-    output.logFields shouldBe
-        """
-          "event":{"id":1001,"type":"ORDER_PLACED"}
-        """
-            .trimIndent()
+      output.logFields shouldBe
+          """
+            "event":{"id":1000,"type":"ORDER_PLACED"}
+          """
+              .trimIndent()
+    }
   }
 
   @Test
   fun `multiple log fields`() {
-    val output = captureLogOutput {
-      log.info {
-        field("first", true)
-        field("second", listOf("value1", "value2"))
-        field("third", 10)
-        "Test"
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val output = captureLogOutput {
+        log.info {
+          test.addField(this, "first", true)
+          test.addField(this, "second", listOf("value1", "value2"))
+          test.addField(this, "third", 10)
+          "Test"
+        }
       }
-    }
 
-    output.logFields shouldBe
-        """
-          "first":true,"second":["value1","value2"],"third":10
-        """
-            .trimIndent()
+      output.logFields shouldBe
+          """
+            "first":true,"second":["value1","value2"],"third":10
+          """
+              .trimIndent()
+    }
   }
 
   @Test
-  fun `custom serializer`() {
-    val prefixSerializer =
-        object : SerializationStrategy<String> {
-          override val descriptor = String.serializer().descriptor
+  fun `explicit serializer`() {
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val prefixSerializer =
+          object : SerializationStrategy<String> {
+            override val descriptor = String.serializer().descriptor
 
-          override fun serialize(encoder: Encoder, value: String) {
-            encoder.encodeString("Prefix: ${value}")
+            override fun serialize(encoder: Encoder, value: String) {
+              encoder.encodeString("Prefix: ${value}")
+            }
           }
+
+      val output = captureLogOutput {
+        log.info {
+          test.addFieldWithSerializer(this, "key", "value", serializer = prefixSerializer)
+          "Test"
         }
-
-    val output = captureLogOutput {
-      log.info {
-        field("key", "value", serializer = prefixSerializer)
-        "Test"
       }
-    }
 
-    output.logFields shouldBe
-        """
-          "key":"Prefix: value"
-        """
-            .trimIndent()
+      output.logFields shouldBe
+          """
+            "key":"Prefix: value"
+          """
+              .trimIndent()
+    }
   }
 
   /**
    * On [field] and [LogBuilder.field], we place a non-nullable `Any` bound on the `ValueT` type
    * parameter, and type the `value` parameter as `ValueT?`. This is to support passing in a custom
    * serializer for a type, but still allow passing in `null` for the value (since this is handled
-   * before checking the serializer in [encodeFieldValue]). This test checks that this works.
+   * before checking the serializer). This test checks that this works.
    */
   @Test
-  fun `custom serializer with nullable value`() {
-    val event: Event? = null
+  fun `explicit serializer with nullable value`() {
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val event: Event? = null
 
-    val output = captureLogOutput {
-      withLoggingContext(
-          // Test `field` in context and on log, since these are different functions
-          field("eventInContext", event, Event.serializer()),
-      ) {
+      val output = captureLogOutput {
         log.info {
-          field("event", event, Event.serializer())
+          test.addFieldWithSerializer(this, "event", event, Event.serializer())
           "Test"
         }
       }
-    }
 
-    output.logFields shouldBe
-        """
-          "event":null
-        """
-            .trimIndent()
-    output.contextFields shouldContainExactly mapOf("eventInContext" to JsonNull)
+      output.logFields shouldBe
+          """
+            "event":null
+          """
+              .trimIndent()
+    }
+  }
+
+  @Test
+  fun `explicit serializer falls back to toString on exception`() {
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val alwaysFailingSerializer =
+          object : SerializationStrategy<Event> {
+            override val descriptor = Event.serializer().descriptor
+
+            override fun serialize(encoder: Encoder, value: Event) {
+              throw Exception("Serialization failed")
+            }
+          }
+
+      val event = Event(id = 1234, type = EventType.ORDER_PLACED)
+
+      val output = captureLogOutput {
+        log.info {
+          test.addFieldWithSerializer(this, "event", event, alwaysFailingSerializer)
+          "Test"
+        }
+      }
+
+      output.logFields shouldBe
+          """
+            "event":"Event(id=1234, type=ORDER_PLACED)"
+          """
+              .trimIndent()
+    }
+  }
+
+  /**
+   * When calling [field]/[LogBuilder.field] with a serializer, the serializer should not be invoked
+   * if the log field value is `null`. We can verify that by making a serializer that always fails
+   * if invoked.
+   */
+  @Test
+  fun `explicit serializer with nullable value does not call serializer`() {
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val alwaysFailingSerializer =
+          object : SerializationStrategy<String> {
+            override val descriptor = String.serializer().descriptor
+
+            override fun serialize(encoder: Encoder, value: String) {
+              // Use Throwable, so it will not be caught and use toString fallback
+              throw Throwable("Should not be called")
+            }
+          }
+
+      val value: String? = null
+
+      val output = captureLogOutput {
+        log.info {
+          test.addFieldWithSerializer(this, "key", value, alwaysFailingSerializer)
+          "Test"
+        }
+      }
+
+      output.logFields shouldBe
+          """
+            "key":null
+          """
+              .trimIndent()
+    }
   }
 
   /**
@@ -143,113 +277,92 @@ internal class LogFieldTest {
    */
   @Test
   fun `custom serializer without reified type parameter`() {
-    fun <T> genericLogFunction(obj: T, serializer: SerializationStrategy<T>) {
-      log.info {
-        field("object", obj, serializer)
-        "Test"
+    runTestCases(LogFieldTestCase.entries) { test ->
+      fun <T> genericLogFunction(obj: T, serializer: SerializationStrategy<T>) {
+        log.info {
+          test.addFieldWithSerializer(this, "object", obj, serializer)
+          "Test"
+        }
       }
-    }
 
-    val output = captureLogOutput {
-      genericLogFunction(Event(id = 1001, type = EventType.ORDER_PLACED), Event.serializer())
-    }
+      val output = captureLogOutput {
+        genericLogFunction(Event(id = 1000, type = EventType.ORDER_PLACED), Event.serializer())
+      }
 
-    output.logFields shouldBe
-        """
-          "object":{"id":1001,"type":"ORDER_PLACED"}
-        """
-            .trimIndent()
+      output.logFields shouldBe
+          """
+            "object":{"id":1000,"type":"ORDER_PLACED"}
+          """
+              .trimIndent()
+    }
   }
 
   @Test
   fun `non-serializable object falls back to toString`() {
-    data class NonSerializableEvent(val id: Long, val type: String)
+    runTestCases(LogFieldTestCase.entries) { test ->
+      data class NonSerializableEvent(val id: Long, val type: String)
 
-    val event = NonSerializableEvent(id = 1001, type = "ORDER_UPDATED")
+      val event = NonSerializableEvent(id = 1000, type = "ORDER_UPDATED")
 
-    val output = captureLogOutput {
-      log.info {
-        field("event", event)
-        "Test"
+      val output = captureLogOutput {
+        log.info {
+          test.addField(this, "event", event)
+          "Test"
+        }
       }
-    }
 
-    output.logFields shouldBe
-        """
-          "event":"NonSerializableEvent(id=1001, type=ORDER_UPDATED)"
-        """
-            .trimIndent()
+      output.logFields shouldBe
+          """
+            "event":"NonSerializableEvent(id=1000, type=ORDER_UPDATED)"
+          """
+              .trimIndent()
+    }
   }
 
   @Test
   fun `duplicate field keys only includes the first field`() {
-    val output = captureLogOutput {
-      log.info {
-        field("duplicateKey", "value1")
-        field("duplicateKey", "value2")
-        field("duplicateKey", "value3")
-        "Test"
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val output = captureLogOutput {
+        log.info {
+          test.addField(this, "duplicateKey", "value1")
+          test.addField(this, "duplicateKey", "value2")
+          test.addField(this, "duplicateKey", "value3")
+          "Test"
+        }
       }
-    }
 
-    output.logFields shouldBe
-        """
-          "duplicateKey":"value1"
-        """
-            .trimIndent()
+      output.logFields shouldBe
+          """
+            "duplicateKey":"value1"
+          """
+              .trimIndent()
+    }
   }
 
   @Test
   fun `null field value is allowed`() {
-    val nullValue: String? = null
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val nullValue: String? = null
 
-    val output = captureLogOutput {
-      log.info {
-        field("key", nullValue)
-        "Test"
+      val output = captureLogOutput {
+        log.info {
+          test.addField(this, "key", nullValue)
+          "Test"
+        }
       }
+
+      output.logFields shouldBe
+          """
+            "key":null
+          """
+              .trimIndent()
     }
-
-    output.logFields shouldBe
-        """
-          "key":null
-        """
-            .trimIndent()
   }
-
-  /**
-   * We want to test handling of raw JSON by:
-   * - [LogBuilder.rawJsonField] method for adding log field to a log
-   * - [rawJsonField] function for creating log fields (for `withLoggingContext`)
-   * - [rawJson] function for creating a `JsonElement` from a raw JSON string
-   *
-   * So we create a test case for each of these, and run each test case through every test of raw
-   * JSON handling.
-   */
-  class RawJsonTestCase(
-      override val name: String,
-      val addRawJsonField:
-          (logBuilder: LogBuilder, key: String, json: String, validJson: Boolean) -> Unit,
-  ) : TestCase
-
-  val rawJsonTestCases: List<RawJsonTestCase> =
-      listOf(
-          RawJsonTestCase("rawJsonField LogBuilder method") { logBuilder, key, json, validJson ->
-            logBuilder.rawJsonField(key, json, validJson)
-          },
-          RawJsonTestCase("rawJsonField function") { logBuilder, key, json, validJson ->
-            val field = rawJsonField(key, json, validJson)
-            logBuilder.addField(field)
-          },
-          RawJsonTestCase("rawJson function") { logBuilder, key, json, validJson ->
-            logBuilder.field(key, value = rawJson(json, validJson))
-          },
-      )
 
   @Test
   fun `raw JSON field works for valid JSON`() {
-    parameterizedTest(rawJsonTestCases) { test ->
-      val eventJson = """{"id":1001,"type":"ORDER_UPDATED"}"""
+    runTestCases(RawJsonTestCase.entries) { test ->
+      val eventJson = """{"id":1000,"type":"ORDER_UPDATED"}"""
 
       // The above JSON should work both for validJson = true and validJson = false
       for (assumeValidJson in listOf(true, false)) {
@@ -263,8 +376,8 @@ internal class LogFieldTest {
 
           output.logFields shouldBe
               """
-              "event":${eventJson}
-            """
+                "event":${eventJson}
+              """
                   .trimIndent()
         }
       }
@@ -273,7 +386,7 @@ internal class LogFieldTest {
 
   @Test
   fun `raw JSON field escapes invalid JSON by default`() {
-    parameterizedTest(rawJsonTestCases) { test ->
+    runTestCases(RawJsonTestCase.entries) { test ->
       val invalidJson = """{"id":1"""
 
       val output = captureLogOutput {
@@ -285,8 +398,8 @@ internal class LogFieldTest {
 
       output.logFields shouldBe
           """
-          "event":"{\"id\":1"
-        """
+            "event":"{\"id\":1"
+          """
               .trimIndent()
     }
   }
@@ -298,7 +411,7 @@ internal class LogFieldTest {
    */
   @Test
   fun `raw JSON field does not escape invalid JSON when validJson is set to true`() {
-    parameterizedTest(rawJsonTestCases) { test ->
+    runTestCases(RawJsonTestCase.entries) { test ->
       val invalidJson = """{"id":1"""
 
       val output = captureLogOutput {
@@ -310,22 +423,22 @@ internal class LogFieldTest {
 
       output.logFields shouldBe
           """
-          "event":${invalidJson}
-        """
+            "event":${invalidJson}
+          """
               .trimIndent()
     }
   }
 
   @Test
   fun `raw JSON field re-encodes JSON when it contains newlines`() {
-    parameterizedTest(rawJsonTestCases) { test ->
+    runTestCases(RawJsonTestCase.entries) { test ->
       val jsonWithNewlines =
           """
-          {
-            "id": 1001,
-            "type": "ORDER_UPDATED"
-          }
-        """
+            {
+              "id": 1000,
+              "type": "ORDER_UPDATED"
+            }
+          """
               .trimIndent()
 
       val output = captureLogOutput {
@@ -337,21 +450,10 @@ internal class LogFieldTest {
 
       output.logFields shouldBe
           """
-          "event":{"id":1001,"type":"ORDER_UPDATED"}
-        """
+            "event":{"id":1000,"type":"ORDER_UPDATED"}
+          """
               .trimIndent()
     }
-  }
-
-  /**
-   * [kotlinx.serialization.json.JsonUnquotedLiteral], which we use in [rawJson], throws if given a
-   * literal "null" string. So we have to check for "null" and instead return [JsonNull] in that
-   * case - we want to test that this works.
-   */
-  @Test
-  fun `passing a JSON literal null to rawJson works`() {
-    val value = rawJson("null")
-    value shouldBe JsonNull
   }
 
   val validJsonTestCases =
@@ -380,7 +482,7 @@ internal class LogFieldTest {
 
   @Test
   fun `validateRawJson accepts valid JSON`() {
-    parameterizedTest(validJsonTestCases) { validJson ->
+    runTestCases(validJsonTestCases) { validJson ->
       val isValid: Boolean =
           validateRawJson(
               validJson,
@@ -408,7 +510,7 @@ internal class LogFieldTest {
 
   @Test
   fun `validateRawJson rejects invalid JSON`() {
-    parameterizedTest(invalidJsonTestCases) { invalidJson ->
+    runTestCases(invalidJsonTestCases) { invalidJson ->
       val isValid: Boolean =
           validateRawJson(
               invalidJson,
@@ -420,27 +522,32 @@ internal class LogFieldTest {
     }
   }
 
+  /**
+   * [kotlinx.serialization.json.JsonUnquotedLiteral], which we use in [rawJson], throws if given a
+   * literal "null" string. So we have to check for "null" and instead return [JsonNull] in that
+   * case - we want to test that this works.
+   */
   @Test
-  fun `addField allows adding a previously constructed field to the log`() {
-    val existingField = field("key", "value")
-
-    val output = captureLogOutput {
-      log.info {
-        addField(existingField)
-        "Test"
-      }
-    }
-
-    output.logFields shouldBe
-        """
-          "key":"value"
-        """
-            .trimIndent()
+  fun `passing a JSON null literal to rawJson works`() {
+    val rawJsonNull = rawJson("null")
+    val serializedValue = Json.encodeToString(rawJsonNull)
+    serializedValue.shouldBe("null")
   }
 
   @Test
-  fun `addFields allows adding a list of previously constructed fields to the log`() {
-    val existingFields =
+  fun `RawJson toString implementations work as expected`() {
+    val validRawJson = rawJson("""["value1","value2","value3"]""")
+    validRawJson.shouldBeInstanceOf<ValidRawJson>()
+    validRawJson.toString().shouldBe("""["value1","value2","value3"]""")
+
+    val invalidJson = rawJson("""["missing closing bracket",""")
+    invalidJson.shouldBeInstanceOf<NotValidJson>()
+    invalidJson.toString().shouldBe("""["missing closing bracket",""")
+  }
+
+  @Test
+  fun `addFields allows adding a collection of previously constructed fields to the log`() {
+    val existingFields: Collection<LogField> =
         listOf(
             field("key1", "value1"),
             field("key2", "value2"),
@@ -471,36 +578,63 @@ internal class LogFieldTest {
     stringField.toString() shouldBe "key=value"
     stringField.toString() shouldBe stringField2.toString()
 
-    val objectField = field("key", Event(id = 1001, type = EventType.ORDER_PLACED))
+    val objectField = field("key", Event(id = 1000, type = EventType.ORDER_PLACED))
 
     stringField.equals(objectField).shouldBeFalse()
     stringField.hashCode() shouldNotBe objectField.hashCode()
 
-    val objectAsStringField = field("key", """{"id":1001,"type":"ORDER_PLACED"}""")
+    val objectAsStringField = field("key", """{"id":1000,"type":"ORDER_PLACED"}""")
 
     objectField.equals(objectAsStringField).shouldBeTrue()
     objectField.hashCode() shouldBe objectAsStringField.hashCode()
-    objectField.toString() shouldBe """key={"id":1001,"type":"ORDER_PLACED"}"""
+    objectField.toString() shouldBe """key={"id":1000,"type":"ORDER_PLACED"}"""
     objectField.toString() shouldBe objectAsStringField.toString()
   }
 
   @Test
   fun `special-case types`() {
-    val output = captureLogOutput {
-      log.info {
-        field("instant", Instant.parse("2024-12-09T16:38:23Z"))
-        field("uri", URI.create("https://example.com"))
-        @Suppress("DEPRECATION") field("url", URL("https://example.com"))
-        field("uuid", UUID.fromString("3638dd04-d196-41ad-8b15-5188a22a6ba4"))
-        field("bigDecimal", BigDecimal("100.0"))
-        "Test"
+    runTestCases(LogFieldTestCase.entries) { test ->
+      val output = captureLogOutput {
+        log.info {
+          test.addField(this, "instant", Instant.parse("2024-12-09T16:38:23Z"))
+          test.addField(this, "uri", URI.create("https://example.com"))
+          @Suppress("DEPRECATION") test.addField(this, "url", URL("https://example.com"))
+          test.addField(this, "uuid", UUID.fromString("3638dd04-d196-41ad-8b15-5188a22a6ba4"))
+          test.addField(this, "bigDecimal", BigDecimal("100.0"))
+          "Test"
+        }
       }
-    }
 
-    output.logFields shouldContain """"instant":"2024-12-09T16:38:23Z""""
-    output.logFields shouldContain """"uri":"https://example.com""""
-    output.logFields shouldContain """"url":"https://example.com""""
-    output.logFields shouldContain """"uuid":"3638dd04-d196-41ad-8b15-5188a22a6ba4""""
-    output.logFields shouldContain """"bigDecimal":"100.0""""
+      output.logFields shouldContain """"instant":"2024-12-09T16:38:23Z""""
+      output.logFields shouldContain """"uri":"https://example.com""""
+      output.logFields shouldContain """"url":"https://example.com""""
+      output.logFields shouldContain """"uuid":"3638dd04-d196-41ad-8b15-5188a22a6ba4""""
+      output.logFields shouldContain """"bigDecimal":"100.0""""
+    }
+  }
+
+  private val jacksonObjectMapper = ObjectMapper()
+
+  @Test
+  fun `ValidRawJson is serializable with Jackson`() {
+    val validRawJson = rawJson("""{"test":true}""")
+    validRawJson.shouldBeInstanceOf<ValidRawJson>()
+
+    val serializedValue = jacksonObjectMapper.writeValueAsString(validRawJson)
+    serializedValue.shouldBe("""{"test":true}""")
+  }
+
+  @Test
+  fun `NotValidJson is serializable with Jackson`() {
+    val invalidJson = rawJson("""{"key":valueWithoutQuotes}""")
+    invalidJson.shouldBeInstanceOf<NotValidJson>()
+
+    val serializedValue = jacksonObjectMapper.writeValueAsString(invalidJson)
+    serializedValue.shouldBe(
+        """
+          "{\"key\":valueWithoutQuotes}"
+        """
+            .trimIndent(),
+    )
   }
 }

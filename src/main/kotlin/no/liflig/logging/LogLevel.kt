@@ -1,7 +1,5 @@
 package no.liflig.logging
 
-import org.slf4j.event.Level as Slf4jLevel
-
 /**
  * The severity of a log. From most to least severe:
  * - [LogLevel.ERROR]
@@ -20,11 +18,7 @@ import org.slf4j.event.Level as Slf4jLevel
  * This is because we don't want to bind ourselves to the public API that an enum exposes
  * ([Enum.name] and [Enum.ordinal]).
  */
-public class LogLevel
-private constructor(
-    // Kept for backwards compatibility. TODO: Remove once users have migrated
-    @PublishedApi internal val slf4jLevel: Slf4jLevel,
-) {
+public class LogLevel private constructor() {
   /** See [LogLevel]. */
   public companion object {
     /**
@@ -32,48 +26,43 @@ private constructor(
      *
      * See [LogLevel] for more on how to configure log levels.
      */
-    @JvmField // Compiles this as a static field on the JVM, for faster access
-    public val ERROR: LogLevel = LogLevel(Slf4jLevel.ERROR)
+    @JvmField public val ERROR: LogLevel = LogLevel()
 
     /**
-     * The second-highest log level - less severe than `ERROR`, more severe than `INFO`. Use this
+     * The second-highest log level: less severe than `ERROR`, more severe than `INFO`. Use this
      * when a fault has occurred in the system, but it doesn't necessarily require the immediate
      * attention that an `ERROR` would.
      *
      * See [LogLevel] for more on how to configure log levels.
      */
-    @JvmField // Compiles this as a static field on the JVM, for faster access
-    public val WARN: LogLevel = LogLevel(Slf4jLevel.WARN)
+    @JvmField public val WARN: LogLevel = LogLevel()
 
     /**
-     * The median log level - less severe than `ERROR` and `WARN`, more severe than `DEBUG` and
+     * The median log level: less severe than `ERROR` and `WARN`, more severe than `DEBUG` and
      * `TRACE`. The standard log level to use for informational output, that most consumers of your
      * logs will be interested in, but that doesn't signal an error in your system.
      *
      * See [LogLevel] for more on how to configure log levels.
      */
-    @JvmField // Compiles this as a static field on the JVM, for faster access
-    public val INFO: LogLevel = LogLevel(Slf4jLevel.INFO)
+    @JvmField public val INFO: LogLevel = LogLevel()
 
     /**
-     * The second-lowest log level - less severe than `INFO`, more severe than `TRACE`. This is used
+     * The second-lowest log level: less severe than `INFO`, more severe than `TRACE`. This is used
      * for debug output, that you may not always have enabled, but that you may want to enable for
      * certain packages where you need more information for debugging.
      *
      * See [LogLevel] for more on how to configure log levels.
      */
-    @JvmField // Compiles this as a static field on the JVM, for faster access
-    public val DEBUG: LogLevel = LogLevel(Slf4jLevel.DEBUG)
+    @JvmField public val DEBUG: LogLevel = LogLevel()
 
     /**
-     * The lowest log level, for tracing minute application details. This log level will typically
-     * be disabled by default, and so will not produce any log output unless explicitly enabled for
-     * a logger.
+     * The lowest log level, for tracing every little detail of an application. This log level will
+     * typically be disabled by default, and so will not produce any log output unless explicitly
+     * enabled for a logger.
      *
      * See [LogLevel] for more on how to configure log levels.
      */
-    @JvmField // Compiles this as a static field on the JVM, for faster access
-    public val TRACE: LogLevel = LogLevel(Slf4jLevel.TRACE)
+    @JvmField public val TRACE: LogLevel = LogLevel()
   }
 
   /**
@@ -108,7 +97,7 @@ private constructor(
    * here - since the constructor is private, there will be no other instances. To keep this logic
    * in one place, we provide this method to emulate a `when` expression on a log level:
    * - We take a lambda parameter for each log level, to ensure that all cases are covered
-   *     - We make the method `inline`, so we don't pay a cost for the lambdas
+   * - We make the method `inline`, so we don't pay a cost for the lambdas
    * - In the unreachable else branch, we throw an exception
    *
    * We may be able to use an enum/sealed class instead if

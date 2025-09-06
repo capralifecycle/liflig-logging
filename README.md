@@ -1,20 +1,23 @@
 # liflig-logging
 
-Structured logging library for Kotlin, that aims to provide a developer-friendly API with near-zero
-runtime overhead. Wraps SLF4J and Logback on the JVM.
+Structured logging library for Kotlin, that aims to provide a developer-friendly API with minimal
+runtime overhead. Currently only supports the JVM platform, wrapping SLF4J.
 
 v2 of the library is a fork of
-[`hermannm/devlog-kotlin`](https://github.com/hermannm/devlog-kotlin) (licensed under
-[MIT](#credits)), to make maintenance and distribution by Liflig easier.
+[`hermannm/devlog-kotlin`](https://github.com/hermannm/devlog-kotlin)
+([licensed under MIT](https://github.com/hermannm/devlog-kotlin/blob/main/LICENSE)),
+to make maintenance and distribution by Liflig easier.
 
 **Contents:**
 
 - [Usage](#usage)
+  - [Note on coroutines](#note-on-coroutines)
 - [Adding to your project](#adding-to-your-project)
 - [Implementation](#implementation)
   - [Performance](#performance)
   - [Automatic logger names](#automatic-logger-names)
 - [Why another logging library?](#why-another-logging-library)
+- [Maintainer's guide](#maintainers-guide)
 - [Credits](#credits)
 
 ## Usage
@@ -44,7 +47,8 @@ fun example() {
 ```
 
 You can also add _fields_ (structured key-value data) to your logs, by calling the `field` method in
-the scope of a log lambda. It uses `kotlinx.serialization` to serialize the value.
+the scope of a log lambda. It uses
+[`kotlinx.serialization`](https://github.com/Kotlin/kotlinx.serialization) to serialize the value.
 
 ```kotlin
 import kotlinx.serialization.Serializable
@@ -53,7 +57,7 @@ import kotlinx.serialization.Serializable
 data class Event(val id: Long, val type: String)
 
 fun example() {
-  val event = Event(id = 1001, type = "ORDER_UPDATED")
+  val event = Event(id = 1000, type = "ORDER_UPDATED")
 
   log.info {
     field("event", event)
@@ -72,21 +76,23 @@ a more structured manner than if you were to just use string concatenation.
 {
   "message": "Processing event",
   "event": {
-    "id": 1001,
+    "id": 1000,
     "type": "ORDER_UPDATED"
   },
   // ...timestamp etc.
 }
 ```
 
-If you want to add fields to all logs within a scope, you can use `withLoggingContext`:
+Sometimes, you may want to add fields to all logs in a scope. For example, you can add an event ID
+to the logs when processing an event, so you can trace all the logs made in the context of that
+event. To do this, you can use `withLoggingContext`:
 
 ```kotlin
 import no.liflig.logging.field
 import no.liflig.logging.withLoggingContext
 
 fun processEvent(event: Event) {
-  withLoggingContext(field("event", event)) {
+  withLoggingContext(field("eventId", event.id)) {
     log.debug { "Started processing event" }
     // ...
     log.debug { "Finished processing event" }
@@ -97,18 +103,16 @@ fun processEvent(event: Event) {
 ...giving the following output:
 
 ```jsonc
-{ "message": "Started processing event", "event": { /* ... */ } }
-{ "message": "Finished processing event", "event": { /* ... */ } }
+{ "message": "Started processing event", "eventId": "..." }
+{ "message": "Finished processing event", "eventId": "..." }
 ```
 
-Note that `withLoggingContext` uses a thread-local
-([SLF4J's `MDC`](https://logback.qos.ch/manual/mdc.html)) to provide log fields to the scope, so it
-won't work with Kotlin coroutines and `suspend` functions. If you use coroutines, you can solve this
-with
-[`MDCContext` from
-`kotlinx-coroutines-slf4j`](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-slf4j/kotlinx.coroutines.slf4j/-m-d-c-context/).
+If an exception is thrown from inside `withLoggingContext`, the logging context is attached to the
+exception. That way, we don't lose context when an exception escapes from the context scope - which
+is when we need it most! When the exception is logged, the fields from the exception's logging
+context are included in the output.
 
-Lastly, you can attach a cause exception to the log like this:
+You can log an exception like this:
 
 ```kotlin
 fun example() {
@@ -119,6 +123,43 @@ fun example() {
   }
 }
 ```
+
+If you want to add log fields to an exception when it's thrown, you can use
+`ExceptionWithLoggingContext`:
+
+```kotlin
+import no.liflig.logging.ExceptionWithLoggingContext
+import no.liflig.logging.field
+
+fun callExternalService() {
+  val response = sendHttpRequest()
+  if (!response.status.successful) {
+    // When this exception is caught and logged, "statusCode" and "responseBody"
+    // will be included as structured fields in the log output.
+    // You can also extend this exception class for your own custom exceptions.
+    throw ExceptionWithLoggingContext(
+      "Received error response from external service",
+      field("statusCode", response.status.code),
+      field("responseBody", response.bodyString()),
+    )
+  }
+}
+```
+
+This is useful when you are throwing an exception from somewhere down in the stack, but do logging
+further up the stack, and you have structured data at the throw site that you want to attach to the
+exception log. In this case, one may typically resort to string concatenation, but
+`ExceptionWithLoggingContext` allows you to have the benefits of structured logging for exceptions
+as well.
+
+### Note on coroutines
+
+`withLoggingContext` uses a thread-local
+([SLF4J's `MDC`](https://logback.qos.ch/manual/mdc.html)) to provide log fields to the scope, so it
+won't work with Kotlin coroutines and `suspend` functions. If you use coroutines, you can solve this
+with
+[`MDCContext` from
+`kotlinx-coroutines-slf4j`](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-slf4j/kotlinx.coroutines.slf4j/-m-d-c-context/).
 
 ## Adding to your project
 
@@ -166,7 +207,7 @@ Then, configure Logback with a `logback.xml` file under `src/main/resources`:
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
       <!-- Writes object values from logging context as actual JSON (not escaped) -->
-      <mdcEntryWriter class="no.liflig.logging.LoggingContextJsonFieldWriter"/>
+      <mdcEntryWriter class="no.liflig.logging.output.logback.JsonContextFieldWriter"/>
     </encoder>
   </appender>
 
@@ -274,38 +315,29 @@ improve with this library:
     the logging context, so that we can filter and query on its fields.
   - `liflig-logging` solves this limitation by instead taking a `LogField` type, which can have an
     arbitrary serializable value, as the parameter to our `withLoggingContext` function. We then
-    provide `LoggingContextJsonFieldWriter` for interoperability with `MDC` when using Logback +
+    provide `JsonContextFieldWriter` for interoperability with `MDC` when using Logback +
     `logstash-logback-encoder`.
+
+## Maintainer's guide
+
+### Checking binary compatibility
+
+- We use the Kotlin
+  [Binary Compatibility Validator](https://github.com/Kotlin/binary-compatibility-validator) to
+  avoid accidental breaking changes
+- This plugin generates an `api/liflig-logging.api` file that contains all the public APIs of the
+  library. When making changes to the library, any changes to the library's public API will be
+  checked against this file (in the `kotlin-bcv:check` Maven task), to detect possible breaking
+  changes
+- When _adding_ new APIs (which should not be a breaking change), you must update this `.api` file
+  by running `mvn clean compile kotlin-bcv:dump`
 
 ## Credits
 
 v2 of the library is a fork of
 [`hermannm/devlog-kotlin`](https://github.com/hermannm/devlog-kotlin), to make maintenance and
-distribution by Liflig easier. `devlog-kotlin` is licensed under MIT:
-
-```
-MIT License
-
-Copyright (c) 2024 Hermann Mørkrid <https://hermannm.dev>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+distribution by Liflig easier. `devlog-kotlin` is
+[licensed under MIT](https://github.com/hermannm/devlog-kotlin/blob/main/LICENSE).
 
 Credits to the [`kotlin-logging` library by Ohad Shai](https://github.com/oshai/kotlin-logging)
 (licensed under
