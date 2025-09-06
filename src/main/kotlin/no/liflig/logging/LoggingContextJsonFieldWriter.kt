@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonGenerator
 import net.logstash.logback.composite.loggingevent.mdc.MdcEntryWriter
 
 @Deprecated(
-    "Renamed and moved to: no.liflig.logging.output.logback.JsonContextFieldWriter",
+    "Renamed and moved to: 'no.liflig.logging.output.logback.JsonContextFieldWriter'",
     ReplaceWith(
         "JsonContexFieldWriter",
         imports = ["no.liflig.logging.output.logback.JsonContextFieldWriter"],

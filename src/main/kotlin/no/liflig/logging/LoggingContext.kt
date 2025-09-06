@@ -397,7 +397,55 @@ internal constructor(
     @Suppress("UNCHECKED_CAST")
     return contextFields as Array<LogField>
   }
+
+  // TODO: Kept for backwards compatibility. Remove once users have migrated
+  @Suppress("unused")
+  @PublishedApi
+  internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields {
+    addFieldsToLoggingContext(fields)
+    return OverwrittenContextFields(null)
+  }
+
+  // TODO: Kept for backwards compatibility. Remove once users have migrated
+  @Suppress("unused")
+  @PublishedApi
+  internal fun removeFields(
+      fields: Array<out LogField>,
+      overwrittenFields: OverwrittenContextFields
+  ) {
+    removeFieldsFromLoggingContext(fields)
+  }
+
+  internal companion object {
+    // TODO: Kept for backwards compatibility. Remove once users have migrated
+    @Suppress("unused") @PublishedApi @JvmField internal val INSTANCE = EMPTY_LOGGING_CONTEXT
+
+    // TODO: Kept for backwards compatibility. Remove once users have migrated
+    @Suppress("unused")
+    @PublishedApi
+    @JvmStatic
+    internal fun addFieldsStatic(fields: Array<out LogField>): OverwrittenContextFields {
+      addFieldsToLoggingContext(fields)
+      return OverwrittenContextFields(null)
+    }
+
+    // TODO: Kept for backwards compatibility. Remove once users have migrated
+    @Suppress("unused")
+    @PublishedApi
+    @JvmStatic
+    internal fun removeFieldsStatic(
+        fields: Array<out LogField>,
+        overwrittenFields: OverwrittenContextFields
+    ) {
+      removeFieldsFromLoggingContext(fields)
+    }
+  }
 }
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused")
+@JvmInline
+internal value class OverwrittenContextFields(private val fields: Array<String?>?)
 
 /** Static field for the empty logging context, to avoid redundant re-instantiations. */
 internal val EMPTY_LOGGING_CONTEXT = LoggingContext(map = null, state = LoggingContextState.empty())
@@ -1174,4 +1222,40 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
   ): T {
     return wrappedExecutor.invokeAny(tasks.map { wrapCallable(it) }, timeout, unit)
   }
+}
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Deprecated(
+    "Renamed to 'getCopyOfLoggingContext', and return type changed",
+    ReplaceWith(
+        "getCopyOfLoggingContext()",
+        imports = ["no.liflig.logging.getCopyOfLoggingContext"],
+    ),
+)
+public fun getLoggingContext(): List<LogField> {
+  return getCopyOfLoggingContext().getFields()?.toList() ?: emptyList()
+}
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused")
+@PublishedApi
+internal inline fun <ReturnT> withLoggingContextInternal(
+    logFields: Array<out LogField>,
+    block: () -> ReturnT,
+): ReturnT {
+  return withLoggingContext(logFields = logFields, block)
+}
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused")
+@PublishedApi
+internal inline fun <ReturnT> withLoggingContext(
+    logFields: List<LogField>,
+    block: () -> ReturnT,
+): ReturnT {
+  // Allows callers to use `block` as if it were in-place
+  contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+
+  val logFields: Collection<LogField> = logFields
+  return withLoggingContext(logFields, block)
 }

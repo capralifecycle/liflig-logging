@@ -52,7 +52,8 @@ import kotlinx.serialization.serializer
  * 2. Exception log fields (from [ExceptionWithLoggingContext])
  * 3. Logging context fields (from [withLoggingContext])
  */
-public class LogField
+// TODO: `open` for backwards compatibility. Remove `open` modifier once users have migrated
+public open class LogField
 internal constructor(
     @JvmField internal val key: String,
     @JvmField internal val value: String,
@@ -503,6 +504,8 @@ internal fun isValidJson(jsonElement: JsonElement): Boolean {
  * of creating an exception just to discard it right after. So we use this function to check if the
  * field value type should eagerly use `toString`.
  */
+// TODO: @PublishedApi kept for backwards compatibility. Remove once users have migrated
+@PublishedApi
 internal fun fieldValueShouldUseToString(value: Any): Boolean {
   return when (value) {
     is java.time.Instant,
@@ -521,10 +524,42 @@ internal fun fieldValueShouldUseToString(value: Any): Boolean {
  * field was omitted due to some error. So in this library, we instead use a JSON `null` as the
  * value for null log fields.
  */
-internal const val JSON_NULL_VALUE: String = "null"
+// TODO: @PublishedApi kept for backwards compatibility. Remove once users have migrated
+@PublishedApi internal const val JSON_NULL_VALUE: String = "null"
 
 @JvmField
 internal val LOG_FIELD_JSON_FORMAT: Json = Json {
   encodeDefaults = true
   ignoreUnknownKeys = true
+}
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused") @PublishedApi @JvmField internal val jsonEncoder: Json = LOG_FIELD_JSON_FORMAT
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused")
+@PublishedApi
+internal val logFieldJson: Json
+  get() = jsonEncoder
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused")
+@PublishedApi
+internal open class StringLogField(
+    key: String,
+    value: String,
+) : LogField(key = key, value = value, isJson = false)
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused")
+@PublishedApi
+internal open class JsonLogField(
+    key: String,
+    value: String,
+    keyForLoggingContext: String = key,
+) : LogField(key = key, value = value, isJson = true) {
+  @PublishedApi
+  internal companion object {
+    @PublishedApi internal const val NULL_VALUE: String = JSON_NULL_VALUE
+  }
 }

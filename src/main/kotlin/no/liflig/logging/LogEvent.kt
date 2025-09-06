@@ -35,6 +35,8 @@ import org.slf4j.spi.LoggingEventAware
  * `Slf4jLogEvent`. [LogEvent] is the common interface between the two, so that [LogBuilder] can
  * call this interface without having to care about the underlying implementation.
  */
+// TODO: @PublishedApi kept for backwards compatibility. Remove once users have migrated
+@PublishedApi
 internal interface LogEvent {
   /**
    * @param logger We pass the logger so that the implementation has access to it if necessary (our
@@ -58,6 +60,9 @@ internal interface LogEvent {
    * log event implementation set this flag to true if it takes care of it itself.
    */
   fun handlesExceptionTreeTraversal(): Boolean
+
+  // TODO: Kept for backwards compatibility. Remove once users have migrated
+  fun isFieldKeyAdded(key: String): Boolean
 }
 
 /**
@@ -70,6 +75,17 @@ internal fun createLogEvent(level: LogLevel, logger: Slf4jLogger): LogEvent {
   }
 
   return Slf4jLogEvent(level, logger)
+}
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Suppress("unused")
+@PublishedApi
+internal fun createLogEvent(level: LogLevel, cause: Throwable?, logger: Slf4jLogger): LogEvent {
+  val logEvent = createLogEvent(level, logger)
+  if (cause != null) {
+    logEvent.setCause(cause, logger, LogBuilder(logEvent))
+  }
+  return logEvent
 }
 
 /**
@@ -198,6 +214,9 @@ internal class Slf4jLogEvent(
 
   /** We don't traverse the cause exception tree in this log event implementation. */
   override fun handlesExceptionTreeTraversal(): Boolean = false
+
+  // TODO: Kept for backwards compatibility. Remove once users have migrated
+  override fun isFieldKeyAdded(key: String): Boolean = isFieldKeyAdded(keyValuePairs, key)
 }
 
 internal fun LogLevel.toSlf4j(): Slf4jLevel {
@@ -270,6 +289,9 @@ internal class LogbackLogEvent(level: LogLevel, logger: LogbackLogger) :
    * [setCause].
    */
   override fun handlesExceptionTreeTraversal(): Boolean = true
+
+  // TODO: Kept for backwards compatibility. Remove once users have migrated
+  override fun isFieldKeyAdded(key: String): Boolean = isFieldKeyAdded(keyValuePairs, key)
 }
 
 /**

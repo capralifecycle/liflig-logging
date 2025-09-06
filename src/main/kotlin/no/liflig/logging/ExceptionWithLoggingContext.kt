@@ -555,3 +555,57 @@ internal fun getSuppressedExceptions(exception: Throwable): List<Throwable>? {
     return suppressedExceptions.asList()
   }
 }
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Deprecated(
+    "Renamed to 'ExceptionWithLoggingContext'",
+    ReplaceWith(
+        "ExceptionWithLoggingContext",
+        imports = ["no.liflig.logging.ExceptionWithLoggingContext"],
+    ),
+)
+@Suppress("DEPRECATION")
+public open class ExceptionWithLogFields(
+    override val message: String?,
+    final override val logFields: List<LogField> = emptyList(),
+    override val cause: Throwable? = null,
+) : RuntimeException(), HasLogFields {
+  public constructor(
+      message: String?,
+      vararg logFields: LogField,
+      cause: Throwable? = null,
+  ) : this(message, logFields.asList(), cause)
+
+  public constructor(
+      logFields: List<LogField> = emptyList(),
+      cause: Throwable? = null,
+  ) : this(message = cause?.message, logFields, cause)
+
+  public constructor(
+      vararg logFields: LogField,
+      cause: Throwable? = null,
+  ) : this(message = cause?.message, logFields.asList(), cause)
+}
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Deprecated(
+    "Renamed to 'HasLoggingContext'",
+    ReplaceWith(
+        "HasLoggingContext",
+        imports = ["no.liflig.logging.HasLoggingContext"],
+    ),
+)
+public interface HasLogFields : HasLoggingContext {
+  public override val logFields: List<LogField>
+}
+
+// TODO: Kept for backwards compatibility. Remove once users have migrated
+@Deprecated(
+    "Renamed to 'HasLoggingContext'",
+    ReplaceWith(
+        "HasLoggingContext",
+        imports = ["no.liflig.logging.HasLoggingContext"],
+    ),
+)
+@Suppress("DEPRECATION")
+public typealias WithLogFields = HasLogFields

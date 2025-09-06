@@ -33,8 +33,11 @@ import org.slf4j.Logger as Slf4jLogger
  */
 @JvmInline // Inline value class, to wrap the underlying log event without overhead
 public value class LogBuilder
+// TODO: @PublishedApi kept for backwards compatibility. Remove once users have migrated
+@PublishedApi
 internal constructor(
-    internal val logEvent: LogEvent,
+    // TODO: @PublishedApi kept for backwards compatibility. Remove once users have migrated
+    @PublishedApi internal val logEvent: LogEvent,
 ) {
   /**
    * Adds a [log field][LogField] (structured key-value data) to the log.
@@ -360,6 +363,22 @@ internal constructor(
       is HasLoggingContext -> {
         addFields(exception.logFields)
       }
+    }
+  }
+
+  @Deprecated("Replaced by new 'addFields' overload that takes a Collection instead of an Iterable")
+  public fun addFields(fields: Iterable<LogField>) {
+    for (field in fields) {
+      addField(field)
+    }
+  }
+
+  // TODO: Kept for backwards compatibility. Remove once users have migrated
+  @Suppress("unused")
+  @PublishedApi
+  internal fun addFieldsFromCauseException(cause: Throwable) {
+    if (!logEvent.handlesExceptionTreeTraversal()) {
+      traverseExceptionTreeForLogFields(root = cause)
     }
   }
 }
