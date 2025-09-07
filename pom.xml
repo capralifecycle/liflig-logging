@@ -90,7 +90,7 @@
         Optional - we only need this if the user:
         - Has chosen Logback as their logger implementation
         - Uses logstash-logback-encoder for encoding logs as JSON
-        - Wants to use our LoggingContextJsonFieldWriter
+        - Wants to use our JsonContextFieldWriter
       -->
       <optional>true</optional>
     </dependency>

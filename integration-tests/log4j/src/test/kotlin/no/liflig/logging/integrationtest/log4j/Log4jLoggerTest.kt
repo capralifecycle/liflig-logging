@@ -31,8 +31,8 @@ class Log4jLoggerTest {
     output shouldContain """"log.level":"INFO""""
     output shouldContain """"message":"Test [event={\"id\":1001,\"type\":\"ORDER_UPDATED\"}]""""
 
-    // When using Logback with logstash-logback-encoder, we provide a LoggingContextJsonFieldWriter
-    // for writing objects in withLoggingContext as actual JSON. But we don't have any equivalent
+    // When using Logback with logstash-logback-encoder, we provide a JsonContextFieldWriter for
+    // writing objects in withLoggingContext as actual JSON. But we don't have any equivalent
     // implementation for Log4j, so the JSON will be escaped.
     output shouldContain """"contextField":"{\"test\":true}""""
   }
