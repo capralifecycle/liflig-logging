@@ -173,14 +173,29 @@ To set up `liflig-logging` with
 `logstash-logback-encoder`](https://mvnrepository.com/artifact/net.logstash.logback/logstash-logback-encoder)
 for JSON output, add the following dependencies:
 
-- **Maven:**
+- **Maven:** We recommend adding `liflig-logging` to the `dependencyManagement` section, so that the
+  same version is used across Liflig libraries. It's good practice to pair this with the
+  [Maven Enforcer Plugin](https://maven.apache.org/enforcer/maven-enforcer-plugin/), with the
+  [
+  `<dependencyConvergence/>`](https://maven.apache.org/enforcer/enforcer-rules/dependencyConvergence.html)
+  and
+  [
+  `<requireUpperBoundDeps/>`](https://maven.apache.org/enforcer/enforcer-rules/requireUpperBoundDeps.html)
+  rules.
   ```xml
+  <dependencyManagement>
+    <dependency>
+      <groupId>no.liflig</groupId>
+      <artifactId>liflig-logging</artifactId>
+      <version>${liflig-logging.version}</version>
+    </dependency>
+  </dependencyManagement>
+  
   <dependencies>
     <!-- Logger API -->
     <dependency>
       <groupId>no.liflig</groupId>
       <artifactId>liflig-logging</artifactId>
-      <version>${liflig-logging.version}</version>
     </dependency>
     <!-- Logger implementation -->
     <dependency>
