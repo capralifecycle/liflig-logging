@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
@@ -18,7 +18,8 @@
 
   <name>liflig-logging</name>
   <description>
-    Structured logging library for Kotlin, that aims to provide a developer-friendly API with near-zero runtime
+    Structured logging library for Kotlin, that aims to provide a developer-friendly API with
+    near-zero runtime
     overhead.
   </description>
 
@@ -74,9 +75,10 @@
       <artifactId>logback-classic</artifactId>
       <version>${logback.version}</version>
       <!--
-        This library works for any SLF4J logger implementation, but makes some optimizations for Logback. If the user
-        chooses Logback as their logger implementation, we can apply these optimizations, but if they don't, then we
-        don't want to load Logback, as that can interfere with other SLF4J logger implementations on the classpath.
+        This library works for any SLF4J logger implementation, but makes some optimizations for
+        Logback. If the user chooses Logback as their logger implementation, we can apply these
+        optimizations, but if they don't, then we don't want to load Logback, as that can interfere
+        with other SLF4J logger implementations on the classpath.
       -->
       <optional>true</optional>
     </dependency>
@@ -104,6 +106,11 @@
       <artifactId>jackson-databind</artifactId>
       <version>${jackson.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-reflect</artifactId>
+      <version>${kotlin.version}</version>
+    </dependency>
 
     <!-- Testing -->
     <dependency>
@@ -121,7 +128,8 @@
   </dependencies>
 
   <scm>
-    <developerConnection>scm:git:https://github.com/capralifecycle/liflig-logging.git</developerConnection>
+    <developerConnection>scm:git:https://github.com/capralifecycle/liflig-logging.git
+    </developerConnection>
     <connection>scm:git:https://github.com/capralifecycle/liflig-logging.git</connection>
     <url>https://github.com/capralifecycle/liflig-logging</url>
     <tag>HEAD</tag>
@@ -301,17 +309,19 @@
       </plugin>
 
       <!--
-        Kotlin provides a Binary Compatibility Validator tool to avoid accidental breaking changes in a library's public
-        API. It works by generating a .api file (`api/liflig-logging.api`) that contains the full public API of the
-        library, using the `kotlin-bcv:dump` task. Then, a `kotlin-bcv:check` task runs during tests, which fails if
-        there are changes to the .api file. If you want to _add_ new APIs (not a breaking change), you must run the
-        `kotlin-bcv:dump` task to update the API file (and check the git diff so you don't accidentally make breaking
-        changes!).
+        Kotlin provides a Binary Compatibility Validator tool to avoid accidental breaking changes
+        in a library's public API. It works by generating a .api file (`api/liflig-logging.api`)
+        that contains the full public API of the library, using the `kotlin-bcv:dump` task. Then, a
+        `kotlin-bcv:check` task runs during tests, which fails if there are changes to the .api
+        file. If you want to _add_ new APIs (not a breaking change), you must run the
+        `kotlin-bcv:dump` task to update the API file (and check the git diff so you don't
+        accidentally make breaking changes!).
 
         Kotlin recommends using this for all libraries:
         https://kotlinlang.org/docs/api-guidelines-backward-compatibility.html#use-the-binary-compatibility-validator
 
-        Unfortunately, BCV is originally a Gradle-only plugin. But a kind soul ported it to Kotlin, so we can use it:
+        Unfortunately, BCV is originally a Gradle-only plugin. But a kind soul ported it to Kotlin,
+        so we can use it:
         https://slack-chats.kotlinlang.org/t/23404390/i-need-a-tool-to-check-if-i-break-binary-compatibility-in-my
       -->
       <plugin>
