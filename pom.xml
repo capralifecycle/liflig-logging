@@ -18,9 +18,8 @@
 
   <name>liflig-logging</name>
   <description>
-    Structured logging library for Kotlin, that aims to provide a developer-friendly API with
-    near-zero runtime
-    overhead.
+    Structured logging library for Kotlin, that aims to provide a
+    developer-friendly API with minimal runtime overhead.
   </description>
 
   <licenses>
