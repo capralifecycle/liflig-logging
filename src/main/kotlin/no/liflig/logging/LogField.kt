@@ -36,8 +36,8 @@ import kotlinx.serialization.serializer
  * concatenation.
  *
  * There are 3 ways to add log fields in this library:
- * - Adding fields to a single log: Use [LogBuilder.field] in the scope of one of the methods on
- *   [Logger] (see example on [LogBuilder.field]).
+ * - Adding fields to a single log: Use [LogBuilder.field] in the scope a [Logger] method (see
+ *   example on [LogBuilder.field]).
  * - Adding fields to all logs in a scope: Use [withLoggingContext], with the [field] top-level
  *   function to construct log fields (see example on [withLoggingContext]).
  * - Adding fields to an exception: Use [ExceptionWithLoggingContext] (see example on its
@@ -333,7 +333,7 @@ internal class ValidRawJson(
   override fun serializeWithType(
       generator: JsonGenerator,
       serializers: SerializerProvider,
-      typeSerializer: TypeSerializer
+      typeSerializer: TypeSerializer,
   ) {
     // Since we don't know what type the raw JSON is, we can only redirect to normal serialization
     serialize(generator, serializers)
@@ -357,7 +357,7 @@ internal class NotValidJson(
   override fun serializeWithType(
       generator: JsonGenerator,
       serializers: SerializerProvider,
-      typeSerializer: TypeSerializer
+      typeSerializer: TypeSerializer,
   ) {
     serialize(generator, serializers)
   }
@@ -434,7 +434,7 @@ internal inline fun <ReturnT> validateRawJson(
     json: String,
     isValid: Boolean,
     crossinline onValidJson: (String) -> ReturnT,
-    crossinline onInvalidJson: (String) -> ReturnT
+    crossinline onInvalidJson: (String) -> ReturnT,
 ): ReturnT {
   try {
     // Some log platforms (e.g. AWS CloudWatch) use newlines as the separator between log messages.

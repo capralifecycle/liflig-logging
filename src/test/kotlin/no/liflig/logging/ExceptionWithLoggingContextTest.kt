@@ -6,6 +6,8 @@ import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.maps.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlin.test.Test
 import no.liflig.logging.testutils.Event
 import no.liflig.logging.testutils.EventType
@@ -476,6 +478,68 @@ internal class ExceptionWithLoggingContextTest {
     traverseExceptionTree(root = exception1) { exception -> traversed.add(exception) }
 
     traversed shouldContainExactly listOf(exception1, exception2, exception3)
+  }
+
+  @Test
+  fun `Throwable withLoggingContext extension function works`() {
+    val originalException = IllegalArgumentException("Something went wrong")
+    val exceptionWithLoggingContext =
+        originalException.withLoggingContext(
+            field("key1", "value1"),
+            field("key2", "value2"),
+        )
+
+    // `withLoggingContext` should not wrap the original exception
+    exceptionWithLoggingContext.shouldBeInstanceOf<IllegalArgumentException>()
+    exceptionWithLoggingContext.shouldBeSameInstanceAs(originalException)
+
+    val output = captureLogOutput { log.error(exceptionWithLoggingContext) { "Test" } }
+    output.logFields.shouldBe(
+        """
+          "key1":"value1","key2":"value2"
+        """
+            .trimIndent(),
+    )
+  }
+
+  @Test
+  fun `Throwable withLoggingContext extension function overload with Collection works`() {
+    val originalException = Throwable("Something went wrong")
+    val logFields: Collection<LogField> =
+        listOf(
+            field("key1", "value1"),
+            field("key2", "value2"),
+        )
+    val exceptionWithLoggingContext = originalException.withLoggingContext(logFields)
+
+    // `withLoggingContext` should not wrap the original exception
+    exceptionWithLoggingContext.shouldBeInstanceOf<Throwable>()
+    exceptionWithLoggingContext.shouldBeSameInstanceAs(originalException)
+
+    val output = captureLogOutput { log.error(exceptionWithLoggingContext) { "Test" } }
+    output.logFields.shouldBe(
+        """
+          "key1":"value1","key2":"value2"
+        """
+            .trimIndent(),
+    )
+  }
+
+  @Test
+  fun `calling Throwable withLoggingContext on ExceptionWithLoggingContext does not add suppressed LoggingContextProvider`() {
+    val exception =
+        ExceptionWithLoggingContext("Something went wrong", field("key1", "value1"))
+            .withLoggingContext(field("key2", "value2"))
+
+    exception.suppressedExceptions.shouldBeEmpty()
+
+    val output = captureLogOutput { log.error(exception) { "Test" } }
+    output.logFields.shouldBe(
+        """
+          "key1":"value1","key2":"value2"
+        """
+            .trimIndent(),
+    )
   }
 }
 

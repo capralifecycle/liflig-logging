@@ -25,6 +25,11 @@ public class no/liflig/logging/ExceptionWithLoggingContext : java/lang/RuntimeEx
 	public fun getMessage ()Ljava/lang/String;
 }
 
+public final class no/liflig/logging/ExceptionWithLoggingContextKt {
+	public static final fun withLoggingContext (Ljava/lang/Throwable;Ljava/util/Collection;)Ljava/lang/Throwable;
+	public static final fun withLoggingContext (Ljava/lang/Throwable;[Lno/liflig/logging/LogField;)Ljava/lang/Throwable;
+}
+
 public abstract interface class no/liflig/logging/HasLogFields : no/liflig/logging/HasLoggingContext {
 	public abstract fun getLogFields ()Ljava/util/List;
 }

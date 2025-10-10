@@ -2,9 +2,9 @@ package no.liflig.logging
 
 /**
  * Exception that carries [log fields][LogField], to provide structured logging context when the
- * exception is logged. When passing a `cause` exception to one of the methods on [Logger], it will
- * check if the given exception is an instance of this class, and if it is, these fields will be
- * added to the log.
+ * exception is logged. When passing an exception to one of [Logger]'s methods, it will check if the
+ * given exception is an instance of this class, and if it is, these fields will be added to the
+ * log.
  *
  * Use the [field]/[rawJsonField] functions to construct log fields.
  *
@@ -217,9 +217,9 @@ public open class ExceptionWithLoggingContext : RuntimeException {
 
 /**
  * Interface for exceptions that carry [log fields][LogField], to provide structured logging context
- * when an exception is logged. When passing a `cause` exception to one of the methods on [Logger],
- * it will check if the given exception implements this interface, and if it does, these fields will
- * be added to the log.
+ * when an exception is logged. When passing an exception to one of [Logger]'s methods, it will
+ * check if the given exception implements this interface, and if it does, these fields will be
+ * added to the log.
  *
  * Use the [field]/[rawJsonField] functions to construct log fields.
  *
@@ -263,7 +263,7 @@ public open class ExceptionWithLoggingContext : RuntimeException {
  * ```
  *
  * The `log.error` would then give the following log output (using `logstash-logback-encoder`), with
- * the `order` log field from `OrderUpdateException` attached:
+ * the `order` log field from `OrderUpdateException` added:
  * ```
  * {
  *   "message": "Failed to update order",
@@ -274,8 +274,42 @@ public open class ExceptionWithLoggingContext : RuntimeException {
  * ```
  */
 public interface HasLoggingContext {
-  /** Will be attached to the log when passed through `cause` to one of [Logger]'s methods. */
+  /** Will be added to the log when this exception is passed to one of [Logger]'s methods. */
   public val logFields: Collection<LogField>
+}
+
+/**
+ * Attaches the given [log fields][LogField] to the exception, to provide structured logging context
+ * when the exception is logged. When passing an exception to one of [Logger]'s methods, it will
+ * check if the given exception carries log fields, and if it does, these fields will be added to
+ * the log.
+ *
+ * Use the [field]/[rawJsonField] functions to construct log fields.
+ *
+ * This function returns the given exception, without wrapping it. If you _want_ to wrap your
+ * exception, you should instead construct an [ExceptionWithLoggingContext], and pass your exception
+ * as the `cause`.
+ */
+public fun <T : Throwable> T.withLoggingContext(vararg logFields: LogField): T {
+  addLoggingContextToException(this, logFields)
+  return this
+}
+
+/**
+ * Attaches the given [log fields][LogField] to the exception, to provide structured logging context
+ * when the exception is logged. When passing an exception to one of [Logger]'s methods, it will
+ * check if the given exception carries log fields, and if it does, these fields will be added to
+ * the log.
+ *
+ * Use the [field]/[rawJsonField] functions to construct log fields.
+ *
+ * This function returns the given exception, without wrapping it. If you _want_ to wrap your
+ * exception, you should instead construct an [ExceptionWithLoggingContext], and pass your exception
+ * as the `cause`.
+ */
+public fun <T : Throwable> T.withLoggingContext(logFields: Collection<LogField>): T {
+  addLoggingContextToException(this, logFields.toTypedArray())
+  return this
 }
 
 /**

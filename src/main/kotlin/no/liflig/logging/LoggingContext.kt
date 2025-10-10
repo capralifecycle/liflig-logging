@@ -83,7 +83,7 @@ import org.slf4j.event.KeyValuePair
  * ```
  *
  * If you have configured `no.liflig.logging.output.logback.JsonContextFieldWriter`, the field from
- * `withLoggingContext` will then be attached to every log as follows:
+ * `withLoggingContext` will then be added to every log, like this:
  * ```json
  * { "message": "Started processing event", "eventId": "..." }
  * { "message": "Finished processing event", "eventId": "..." }
@@ -176,7 +176,7 @@ public inline fun <ReturnT> withLoggingContext(
  * ```
  *
  * If you have configured `no.liflig.logging.output.logback.JsonContextFieldWriter`, the field from
- * `withLoggingContext` will then be attached to every log as follows:
+ * `withLoggingContext` will then be added to every log, like this:
  * ```json
  * { "message": "Started processing event", "eventId": "..." }
  * { "message": "Finished processing event", "eventId": "..." }
