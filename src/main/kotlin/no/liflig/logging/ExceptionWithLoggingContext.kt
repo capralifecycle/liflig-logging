@@ -16,6 +16,9 @@ package no.liflig.logging
  * You can extend this class for your own custom exception types. If you'd rather implement an
  * interface than extend a class, use [HasLoggingContext].
  *
+ * If you just want to attach log fields to an existing exception, without wrapping it, you can call
+ * the [Throwable.withLoggingContext] extension function instead.
+ *
  * ### Example
  *
  * ```
@@ -280,9 +283,8 @@ public interface HasLoggingContext {
 
 /**
  * Attaches the given [log fields][LogField] to the exception, to provide structured logging context
- * when the exception is logged. When passing an exception to one of [Logger]'s methods, it will
- * check if the given exception carries log fields, and if it does, these fields will be added to
- * the log.
+ * when the exception is logged. When the exception is passed to one of [Logger]'s methods, these
+ * fields will be added to the log.
  *
  * Use the [field]/[rawJsonField] functions to construct log fields.
  *
@@ -297,9 +299,8 @@ public fun <T : Throwable> T.withLoggingContext(vararg logFields: LogField): T {
 
 /**
  * Attaches the given [log fields][LogField] to the exception, to provide structured logging context
- * when the exception is logged. When passing an exception to one of [Logger]'s methods, it will
- * check if the given exception carries log fields, and if it does, these fields will be added to
- * the log.
+ * when the exception is logged. When the exception is passed to one of [Logger]'s methods, these
+ * fields will be added to the log.
  *
  * Use the [field]/[rawJsonField] functions to construct log fields.
  *
