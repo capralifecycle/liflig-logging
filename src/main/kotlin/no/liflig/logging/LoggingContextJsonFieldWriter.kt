@@ -16,9 +16,9 @@ public class LoggingContextJsonFieldWriter : MdcEntryWriter {
       generator: JsonGenerator,
       fieldName: String,
       mdcKey: String,
-      value: String
+      value: String,
   ): Boolean {
-    if (LoggingContextState.get().isJsonField(mdcKey, value)) {
+    if (getLoggingContextState().isJsonField(mdcKey, value)) {
       generator.writeFieldName(fieldName)
       generator.writeRawValue(value)
       return true

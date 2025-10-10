@@ -5,11 +5,11 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import no.liflig.logging.LoggingContext
-import no.liflig.logging.LoggingContextState
 import no.liflig.logging.getCopyOfLoggingContext
+import no.liflig.logging.getEmptyLoggingContextState
 
 internal fun createLoggingContext(fields: Map<String, String>): LoggingContext {
-  return LoggingContext(map = fields, state = LoggingContextState.empty())
+  return LoggingContext(map = fields, state = getEmptyLoggingContextState())
 }
 
 internal fun loggingContextShouldContainExactly(expectedFields: Map<String, String>) {

@@ -184,7 +184,7 @@ public inline fun <ReturnT> withLoggingContext(
  */
 public inline fun <ReturnT> withLoggingContext(
     logFields: Collection<LogField>,
-    block: () -> ReturnT
+    block: () -> ReturnT,
 ): ReturnT {
   // Allows callers to use `block` as if it were in-place
   contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
@@ -272,7 +272,7 @@ public inline fun <ReturnT> withLoggingContext(
  */
 public inline fun <ReturnT> withLoggingContext(
     context: LoggingContext,
-    block: () -> ReturnT
+    block: () -> ReturnT,
 ): ReturnT {
   // Allows callers to use `block` as if it were in-place
   contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
@@ -351,7 +351,7 @@ public fun getCopyOfLoggingContext(): LoggingContext {
     return EMPTY_LOGGING_CONTEXT
   }
 
-  val contextState = LoggingContextState.get().copy()
+  val contextState = getLoggingContextState().copy()
 
   return LoggingContext(contextMap, contextState)
 }
@@ -411,7 +411,7 @@ internal constructor(
   @PublishedApi
   internal fun removeFields(
       fields: Array<out LogField>,
-      overwrittenFields: OverwrittenContextFields
+      overwrittenFields: OverwrittenContextFields,
   ) {
     removeFieldsFromLoggingContext(fields)
   }
@@ -435,7 +435,7 @@ internal constructor(
     @JvmStatic
     internal fun removeFieldsStatic(
         fields: Array<out LogField>,
-        overwrittenFields: OverwrittenContextFields
+        overwrittenFields: OverwrittenContextFields,
     ) {
       removeFieldsFromLoggingContext(fields)
     }
@@ -448,11 +448,12 @@ internal constructor(
 internal value class OverwrittenContextFields(private val fields: Array<String?>?)
 
 /** Static field for the empty logging context, to avoid redundant re-instantiations. */
-internal val EMPTY_LOGGING_CONTEXT = LoggingContext(map = null, state = LoggingContextState.empty())
+internal val EMPTY_LOGGING_CONTEXT =
+    LoggingContext(map = null, state = getEmptyLoggingContextState())
 
 @PublishedApi
 internal fun addFieldsToLoggingContext(fields: Array<out LogField>) {
-  var contextState = LoggingContextState.get()
+  var contextState = getLoggingContextState()
   val newFieldCount = fields.size
 
   for (index in fields.indices) {
@@ -477,7 +478,7 @@ internal fun addFieldsToLoggingContext(fields: Array<out LogField>) {
 
 @PublishedApi
 internal fun removeFieldsFromLoggingContext(fields: Array<out LogField>) {
-  val contextState = LoggingContextState.get()
+  val contextState = getLoggingContextState()
 
   for (index in fields.indices) {
     val field = fields[index]
@@ -516,7 +517,7 @@ internal fun addExistingContextFieldsToLoggingContext(existingContext: LoggingCo
   }
   val existingContextSize = existingContextMap.size
 
-  var currentState = LoggingContextState.get()
+  var currentState = getLoggingContextState()
 
   for ((key, value) in existingContextMap) {
     if (value == null) {
@@ -543,7 +544,7 @@ internal fun removeExistingContextFieldsFromLoggingContext(existingContext: Logg
     return
   }
 
-  val currentContextState = LoggingContextState.get()
+  val currentContextState = getLoggingContextState()
 
   for ((key, value) in existingContextMap) {
     // To match `addExistingContextFieldsToLoggingContext`
@@ -599,7 +600,7 @@ internal fun addLoggingContextToException(
 @PublishedApi
 internal fun addExistingLoggingContextToException(
     exception: Throwable,
-    existingContext: LoggingContext
+    existingContext: LoggingContext,
 ) {
   val contextFields = existingContext.getFields()
   if (contextFields != null) {
@@ -632,7 +633,7 @@ internal fun overwriteDuplicateContextFieldsForLog(logFields: MutableList<KeyVal
     return
   }
 
-  var contextState = LoggingContextState.get()
+  var contextState = getLoggingContextState()
 
   var removedFieldCount = 0
   for (index in 0..(totalFieldCount - 1)) {
@@ -661,7 +662,7 @@ internal fun overwriteDuplicateContextFieldsForLog(logFields: MutableList<KeyVal
 
 /** See [overwriteDuplicateContextFieldsForLog]. */
 internal fun restoreContextFieldsOverwrittenForLog() {
-  val contextState = LoggingContextState.get()
+  val contextState = getLoggingContextState()
 
   contextState.restoreFieldsOverwrittenForLog { key, overwrittenValue ->
     MDC.put(key, overwrittenValue)
@@ -726,14 +727,14 @@ internal fun restoreContextFieldsOverwrittenForLog() {
  * context takes up 4 elements in the array, as follows:
  * 1. Key
  * 2. Value
- * 3. Marker for whether the field is JSON (see [LoggingContextState.JSON_FIELD_SENTINEL])
+ * 3. Marker for whether the field is JSON (see [LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL])
  * 4. Overwritten value from previous logging context, to be restored (`null` if there was none)
  *
  * This lets us store the context state as compactly as possible.
  */
 @JvmInline
 internal value class LoggingContextState
-private constructor(private val stateArray: Array<String?>?) {
+internal constructor(private val stateArray: Array<String?>?) {
   /**
    * Adds a field to the logging context state.
    *
@@ -806,7 +807,7 @@ private constructor(private val stateArray: Array<String?>?) {
    */
   internal fun saveAfterAddingFields() {
     if (stateArray != null) {
-      setThreadLoggingContextState(stateArray)
+      saveLoggingContextStateArray(stateArray)
     }
   }
 
@@ -826,9 +827,9 @@ private constructor(private val stateArray: Array<String?>?) {
    */
   internal fun saveAfterRemovingFields() {
     if (stateArray == null || InitializedState(stateArray).isEmpty()) {
-      clearThreadLoggingContextState()
+      clearLoggingContextState()
     } else {
-      setThreadLoggingContextState(stateArray)
+      saveLoggingContextStateArray(stateArray)
     }
   }
 
@@ -860,7 +861,7 @@ private constructor(private val stateArray: Array<String?>?) {
    */
   internal fun storeFieldOverwrittenForLog(
       key: String,
-      overwrittenValue: String
+      overwrittenValue: String,
   ): LoggingContextState {
     return add(
         key = key,
@@ -909,7 +910,7 @@ private constructor(private val stateArray: Array<String?>?) {
 
     val emptyFields = InitializedState(stateArray).countEmptyFields()
 
-    val newSize = stateArray.size - emptyFields * ELEMENTS_PER_FIELD
+    val newSize = stateArray.size - emptyFields * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD
     return LoggingContextState(stateArray.copyOf(newSize = newSize))
   }
 
@@ -917,7 +918,8 @@ private constructor(private val stateArray: Array<String?>?) {
     return if (stateArray != null) {
       InitializedState(stateArray)
     } else {
-      InitializedState(arrayOfNulls(size = newFieldCount * ELEMENTS_PER_FIELD))
+      InitializedState(
+          arrayOfNulls(size = newFieldCount * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD))
     }
   }
 
@@ -937,7 +939,7 @@ private constructor(private val stateArray: Array<String?>?) {
         isJson: Boolean,
         overwrittenValue: String?,
     ) {
-      val isJsonValue = if (isJson) JSON_FIELD_SENTINEL else null
+      val isJsonValue = if (isJson) LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL else null
       stateArray[index] = key
       stateArray[index + 1] = value
       stateArray[index + 2] = isJsonValue
@@ -954,10 +956,10 @@ private constructor(private val stateArray: Array<String?>?) {
 
     internal fun isJson(index: StateKeyIndex): Boolean {
       /**
-       * See [LoggingContextState.JSON_FIELD_SENTINEL] for why we use referential equality (`===`)
+       * See [LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL] for why we use referential equality (`===`)
        * here.
        */
-      return stateArray[index + 2] === JSON_FIELD_SENTINEL
+      return stateArray[index + 2] === LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL
     }
 
     internal fun getOverwrittenValue(index: StateKeyIndex): String? {
@@ -982,7 +984,9 @@ private constructor(private val stateArray: Array<String?>?) {
     }
 
     internal fun resize(newFieldCount: Int): InitializedState {
-      val newState = arrayOfNulls<String?>(stateArray.size + newFieldCount * ELEMENTS_PER_FIELD)
+      val newState =
+          arrayOfNulls<String?>(
+              stateArray.size + newFieldCount * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD)
 
       stateArray.copyInto(newState)
 
@@ -1021,44 +1025,17 @@ private constructor(private val stateArray: Array<String?>?) {
 
     internal inline fun forEachKeyIndexReversed(action: (index: StateKeyIndex) -> Unit) {
       val size = stateArray.size
-      if (size < ELEMENTS_PER_FIELD) {
+      if (size < LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD) {
         return
       }
 
-      var index = size - ELEMENTS_PER_FIELD
+      var index = size - LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD
       while (index >= 0) {
         action(index)
 
-        index -= ELEMENTS_PER_FIELD
+        index -= LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD
       }
     }
-  }
-
-  internal companion object {
-    @JvmStatic
-    internal fun get(): LoggingContextState {
-      return LoggingContextState(getThreadLoggingContextState())
-    }
-
-    @JvmStatic
-    internal fun empty(): LoggingContextState {
-      return LoggingContextState(null)
-    }
-
-    /** See [LoggingContextState]. */
-    private const val ELEMENTS_PER_FIELD = 4
-
-    /**
-     * A sentinel value to mark whether a logging context field is JSON. We use a sentinel String
-     * object for this instead of a boolean, because we want the [LoggingContextState] array to be
-     * an array of Strings (since all the other values in the context state are Strings, and we
-     * don't want to do casting).
-     *
-     * We don't use `const` here, since we want to be 100% sure that we use the same string
-     * reference when inserting into the state array as when we check for this value, so we can use
-     * faster reference equality (`===`) instead of structural equality (`==`).
-     */
-    @Suppress("MayBeConstant") private val JSON_FIELD_SENTINEL: String = "JSON"
   }
 }
 
@@ -1072,17 +1049,36 @@ private constructor(private val stateArray: Array<String?>?) {
  */
 private val THREAD_LOGGING_CONTEXT_STATE = ThreadLocal<Array<String?>?>()
 
-internal fun getThreadLoggingContextState(): Array<String?>? {
-  return THREAD_LOGGING_CONTEXT_STATE.get()
+internal fun getLoggingContextState(): LoggingContextState {
+  return LoggingContextState(THREAD_LOGGING_CONTEXT_STATE.get())
 }
 
-internal fun setThreadLoggingContextState(stateArray: Array<String?>) {
+internal fun saveLoggingContextStateArray(stateArray: Array<String?>) {
   THREAD_LOGGING_CONTEXT_STATE.set(stateArray)
 }
 
-internal fun clearThreadLoggingContextState() {
+internal fun clearLoggingContextState() {
   THREAD_LOGGING_CONTEXT_STATE.remove()
 }
+
+internal fun getEmptyLoggingContextState(): LoggingContextState {
+  return LoggingContextState(null)
+}
+
+/** See [LoggingContextState]. */
+private const val LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD = 4
+
+/**
+ * A sentinel value to mark whether a logging context field is JSON. We use a sentinel String object
+ * for this instead of a boolean, because we want the [LoggingContextState] array to be an array of
+ * Strings (since all the other values in the context state are Strings, and we don't want to do
+ * casting).
+ *
+ * We don't use `const` here, since we want to be 100% sure that we use the same string reference
+ * when inserting into the state array as when we check for this value, so we can use faster
+ * reference equality (`===`) instead of structural equality (`==`).
+ */
+@Suppress("MayBeConstant") private val LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL: String = "JSON"
 
 /** A valid index for a key in the [LoggingContextState] array. */
 private typealias StateKeyIndex = Int
@@ -1206,7 +1202,7 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
   override fun <T : Any?> invokeAll(
       tasks: MutableCollection<out Callable<T>>,
       timeout: Long,
-      unit: TimeUnit
+      unit: TimeUnit,
   ): MutableList<Future<T>> {
     return wrappedExecutor.invokeAll(tasks.map { wrapCallable(it) }, timeout, unit)
   }
@@ -1218,7 +1214,7 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
   override fun <T : Any?> invokeAny(
       tasks: MutableCollection<out Callable<T>>,
       timeout: Long,
-      unit: TimeUnit
+      unit: TimeUnit,
   ): T {
     return wrappedExecutor.invokeAny(tasks.map { wrapCallable(it) }, timeout, unit)
   }

@@ -453,41 +453,37 @@ internal class CustomLogbackThrowableProxy : IThrowableProxy {
 
   override fun isCyclic(): Boolean = cyclic
 
-  private companion object {
-    private val EMPTY_SUPPRESSED_ARRAY: Array<CustomLogbackThrowableProxy> = emptyArray()
-    private val EMPTY_STACK_TRACE: Array<StackTraceElementProxy> = emptyArray()
-
-    @JvmStatic
-    private fun stackTraceToProxy(
-        stackTrace: Array<StackTraceElement>
-    ): Array<StackTraceElementProxy> {
-      if (stackTrace.isEmpty()) {
-        return EMPTY_STACK_TRACE
-      } else {
-        return Array(stackTrace.size) { index -> StackTraceElementProxy(stackTrace[index]) }
-      }
-    }
-
-    @JvmStatic
-    private fun countCommonFrames(
-        childStackTrace: Array<StackTraceElement>,
-        parentStackTrace: Array<StackTraceElementProxy>
-    ): Int {
-      var commonFrames = 0
-      var childIndex = childStackTrace.size - 1
-      var parentIndex = parentStackTrace.size - 1
-      while (childIndex >= 0 && parentIndex >= 0) {
-        val childStackTraceElement = childStackTrace[childIndex]
-        val parentStackTraceElement = parentStackTrace[parentIndex].stackTraceElement
-        if (childStackTraceElement == parentStackTraceElement) {
-          commonFrames++
-        } else {
-          break
-        }
-        childIndex--
-        parentIndex--
-      }
-      return commonFrames
-    }
+  internal companion object {
+    @JvmField internal val EMPTY_SUPPRESSED_ARRAY: Array<CustomLogbackThrowableProxy> = emptyArray()
+    @JvmField internal val EMPTY_STACK_TRACE: Array<StackTraceElementProxy> = emptyArray()
   }
+}
+
+private fun stackTraceToProxy(stackTrace: Array<StackTraceElement>): Array<StackTraceElementProxy> {
+  if (stackTrace.isEmpty()) {
+    return CustomLogbackThrowableProxy.EMPTY_STACK_TRACE
+  } else {
+    return Array(stackTrace.size) { index -> StackTraceElementProxy(stackTrace[index]) }
+  }
+}
+
+private fun countCommonFrames(
+    childStackTrace: Array<StackTraceElement>,
+    parentStackTrace: Array<StackTraceElementProxy>,
+): Int {
+  var commonFrames = 0
+  var childIndex = childStackTrace.size - 1
+  var parentIndex = parentStackTrace.size - 1
+  while (childIndex >= 0 && parentIndex >= 0) {
+    val childStackTraceElement = childStackTrace[childIndex]
+    val parentStackTraceElement = parentStackTrace[parentIndex].stackTraceElement
+    if (childStackTraceElement == parentStackTraceElement) {
+      commonFrames++
+    } else {
+      break
+    }
+    childIndex--
+    parentIndex--
+  }
+  return commonFrames
 }
