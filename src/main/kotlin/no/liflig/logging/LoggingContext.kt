@@ -797,7 +797,7 @@ internal constructor(private val stateArray: Array<String?>) {
    * See [saveAfterRemovingFields] for why we have two separate save methods.
    */
   internal fun saveAfterAddingFields() {
-    saveLoggingContextStateArray(stateArray)
+    saveLoggingContextStateArray(this.stateArray)
   }
 
   /**
@@ -818,7 +818,7 @@ internal constructor(private val stateArray: Array<String?>) {
     if (this.isEmpty()) {
       clearLoggingContextState()
     } else {
-      saveLoggingContextStateArray(stateArray)
+      saveLoggingContextStateArray(this.stateArray)
     }
   }
 
@@ -847,7 +847,7 @@ internal constructor(private val stateArray: Array<String?>) {
       key: String,
       overwrittenValue: String,
   ): LoggingContextState {
-    return add(
+    return this.add(
         key = key,
         value = null,
         isJson = false,
@@ -889,8 +889,8 @@ internal constructor(private val stateArray: Array<String?>) {
 
     val emptyFields = this.countEmptyFields()
 
-    val newSize = stateArray.size - emptyFields * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD
-    return LoggingContextState(stateArray.copyOf(newSize = newSize))
+    val newSize = this.stateArray.size - emptyFields * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD
+    return LoggingContextState(this.stateArray.copyOf(newSize = newSize))
   }
 
   private fun set(
@@ -901,18 +901,18 @@ internal constructor(private val stateArray: Array<String?>) {
       overwrittenValue: String?,
   ) {
     val isJsonValue = if (isJson) LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL else null
-    stateArray[index] = key
-    stateArray[index + 1] = value
-    stateArray[index + 2] = isJsonValue
-    stateArray[index + 3] = overwrittenValue
+    this.stateArray[index] = key
+    this.stateArray[index + 1] = value
+    this.stateArray[index + 2] = isJsonValue
+    this.stateArray[index + 3] = overwrittenValue
   }
 
   private fun getKey(index: StateKeyIndex): String? {
-    return stateArray[index]
+    return this.stateArray[index]
   }
 
   private fun getValue(index: StateKeyIndex): String? {
-    return stateArray[index + 1]
+    return this.stateArray[index + 1]
   }
 
   private fun isJson(index: StateKeyIndex): Boolean {
@@ -920,22 +920,26 @@ internal constructor(private val stateArray: Array<String?>) {
      * See [LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL] for why we use referential equality (`===`)
      * here.
      */
-    return stateArray[index + 2] === LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL
+    return this.stateArray[index + 2] === LOGGING_CONTEXT_STATE_JSON_FIELD_SENTINEL
   }
 
   private fun getOverwrittenValue(index: StateKeyIndex): String? {
-    return stateArray[index + 3]
+    return this.stateArray[index + 3]
   }
 
   private fun remove(index: StateKeyIndex) {
-    stateArray.fill(element = null, fromIndex = index, toIndex = index + 3)
+    this.stateArray.fill(
+        element = null,
+        fromIndex = index,
+        toIndex = index + LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD,
+    )
   }
 
   /** Returns -1 if no available index. */
   private fun getAvailableIndex(): StateKeyIndex {
     var availableIndex = -1
-    forEachKeyIndexReversed { index ->
-      if (getKey(index) == null) {
+    this.forEachKeyIndexReversed { index ->
+      if (this.getKey(index) == null) {
         availableIndex = index
       } else {
         return availableIndex
@@ -949,13 +953,13 @@ internal constructor(private val stateArray: Array<String?>) {
         arrayOfNulls<String?>(
             stateArray.size + newFieldCount * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD)
 
-    stateArray.copyInto(newState)
+    this.stateArray.copyInto(newState)
 
     return LoggingContextState(newState)
   }
 
   private fun isEmpty(): Boolean {
-    forEachKeyReversed { _, _ ->
+    this.forEachKeyReversed { _, _ ->
       // This function iterates over non-null keys, so if we get a single hit, then we know we're
       // not empty
       return false
@@ -965,8 +969,8 @@ internal constructor(private val stateArray: Array<String?>) {
 
   private fun countEmptyFields(): Int {
     var emptyFields = 0
-    forEachKeyIndexReversed { index ->
-      if (getKey(index) == null) {
+    this.forEachKeyIndexReversed { index ->
+      if (this.getKey(index) == null) {
         emptyFields++
       } else {
         return emptyFields
@@ -976,8 +980,8 @@ internal constructor(private val stateArray: Array<String?>) {
   }
 
   private inline fun forEachKeyReversed(action: (index: StateKeyIndex, key: String) -> Unit) {
-    forEachKeyIndexReversed { index ->
-      val key = getKey(index)
+    this.forEachKeyIndexReversed { index ->
+      val key = this.getKey(index)
       if (key != null) {
         action(index, key)
       }
@@ -985,7 +989,7 @@ internal constructor(private val stateArray: Array<String?>) {
   }
 
   private inline fun forEachKeyIndexReversed(action: (index: StateKeyIndex) -> Unit) {
-    val size = stateArray.size
+    val size = this.stateArray.size
     if (size < LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD) {
       return
     }
