@@ -40,7 +40,7 @@
     <kotlinx-serialization.version>1.9.0</kotlinx-serialization.version>
 
     <!-- Testing -->
-    <kotest.version>5.9.1</kotest.version>
+    <kotest.version>6.0.3</kotest.version>
 
     <!-- Maven plugins -->
     <required-maven-version>3.6.3</required-maven-version>
