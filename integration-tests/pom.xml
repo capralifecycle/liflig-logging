@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
@@ -31,6 +32,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
     <kotlin.version>2.2.20</kotlin.version>
+    <java.version>11</java.version>
 
     <!-- Logging -->
     <liflig-logging.version>2.local-SNAPSHOT</liflig-logging.version>
@@ -40,11 +42,10 @@
     <kotlinx-serialization.version>1.9.0</kotlinx-serialization.version>
 
     <!-- Testing -->
-    <kotest.version>5.9.1</kotest.version>
+    <kotest.version>6.0.4</kotest.version>
 
     <!-- Maven plugins -->
     <required-maven-version>3.6.3</required-maven-version>
-    <versions-maven-plugin.version>2.18.0</versions-maven-plugin.version>
   </properties>
 
   <repositories>
@@ -83,7 +84,6 @@
   </dependencyManagement>
 
   <dependencies>
-
     <dependency>
       <groupId>no.liflig</groupId>
       <artifactId>liflig-logging</artifactId>
@@ -123,6 +123,7 @@
         <artifactId>kotlin-maven-plugin</artifactId>
         <version>${kotlin.version}</version>
         <configuration>
+          <jvmTarget>${java.version}</jvmTarget>
           <compilerPlugins>
             <plugin>kotlinx-serialization</plugin>
           </compilerPlugins>
