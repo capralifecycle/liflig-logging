@@ -951,7 +951,8 @@ internal constructor(private val stateArray: Array<String?>) {
   private fun resize(newFieldCount: Int): LoggingContextState {
     val newState =
         arrayOfNulls<String?>(
-            stateArray.size + newFieldCount * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD)
+            stateArray.size + newFieldCount * LOGGING_CONTEXT_STATE_ELEMENTS_PER_FIELD
+        )
 
     this.stateArray.copyInto(newState)
 

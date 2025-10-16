@@ -14,7 +14,7 @@ internal inline fun <TestCaseT> runTestCases(
     // `crossinline` to prevent early returns, which would cancel later test cases
     crossinline beforeEach: () -> Unit = {},
     crossinline afterEach: () -> Unit = {},
-    crossinline test: (TestCaseT) -> Unit
+    crossinline test: (TestCaseT) -> Unit,
 ) {
   for ((index, testCase) in testCases.withIndex()) {
     beforeEach()

@@ -225,7 +225,7 @@ internal constructor(
   public fun <ValueT : Any> field(
       key: String,
       value: ValueT?,
-      serializer: SerializationStrategy<ValueT>
+      serializer: SerializationStrategy<ValueT>,
   ) {
     try {
       if (value == null) {
