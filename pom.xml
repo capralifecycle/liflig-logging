@@ -42,9 +42,12 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
+    <!-- Required by kotest v6 -->
+    <java.version>11</java.version>
+
     <!-- Logging -->
     <slf4j.version>2.0.17</slf4j.version>
-    <logback.version>1.5.18</logback.version>
+    <logback.version>1.5.19</logback.version>
     <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
 
     <!-- Serialization -->
@@ -52,10 +55,10 @@
     <jackson.version>2.20.0</jackson.version>
 
     <!-- Testing -->
-    <kotest.version>5.9.1</kotest.version>
+    <kotest.version>6.0.4</kotest.version>
 
     <!-- Maven plugins -->
-    <maven-dependency-plugin.version>3.8.1</maven-dependency-plugin.version>
+    <maven-dependency-plugin.version>3.9.0</maven-dependency-plugin.version>
     <exec-maven-plugin.version>3.5.1</exec-maven-plugin.version>
     <flatten-maven-plugin.version>1.7.2</flatten-maven-plugin.version>
     <!-- Check for newer versions here: https://gitlab.com/chromaway/core-tools/kotlin-bcv-maven-plugin/-/tags -->
@@ -166,6 +169,7 @@
         <artifactId>kotlin-maven-plugin</artifactId>
         <version>${kotlin.version}</version>
         <configuration>
+          <jvmTarget>${java.version}</jvmTarget>
           <args>
             <!-- Require explicit public modifiers, to avoid accidentally publishing internal APIs -->
             <arg>-Xexplicit-api=strict</arg>
