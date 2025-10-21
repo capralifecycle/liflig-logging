@@ -22,7 +22,6 @@ atlassian-ide-plugin.xml
 !.idea/codeStyles/Project.xml
 !.idea/encodings.xml
 !.idea/externalDependencies.xml
-!.idea/kotlinc.xml
 !.idea/ktfmt.xml
 !.idea/sqldialects.xml
 !.idea/vcs.xml
