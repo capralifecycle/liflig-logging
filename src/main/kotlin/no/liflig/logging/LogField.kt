@@ -1,9 +1,5 @@
 package no.liflig.logging
 
-import com.fasterxml.jackson.core.JsonGenerator
-import com.fasterxml.jackson.databind.JsonSerializable
-import com.fasterxml.jackson.databind.SerializerProvider
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -25,6 +21,10 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.serializer
+import tools.jackson.core.JsonGenerator
+import tools.jackson.databind.JacksonSerializable
+import tools.jackson.databind.SerializationContext
+import tools.jackson.databind.jsontype.TypeSerializer
 
 /**
  * A log field is a key-value pair for adding structured data to logs.
@@ -322,20 +322,20 @@ public fun rawJson(json: String, validJson: Boolean = false): RawJson {
 /** [RawJson] implementation for when the JSON string given to [rawJson] is valid. */
 internal class ValidRawJson(
     @JvmField internal actual val json: String,
-) : RawJson, JsonSerializable {
+) : RawJson, JacksonSerializable {
   override fun toString() = json
 
-  override fun serialize(generator: JsonGenerator, serializers: SerializerProvider) {
+  override fun serialize(generator: JsonGenerator, context: SerializationContext) {
     generator.writeRawValue(json)
   }
 
   override fun serializeWithType(
       generator: JsonGenerator,
-      serializers: SerializerProvider,
+      context: SerializationContext,
       typeSerializer: TypeSerializer,
   ) {
     // Since we don't know what type the raw JSON is, we can only redirect to normal serialization
-    serialize(generator, serializers)
+    serialize(generator, context)
   }
 
   override fun equals(other: Any?): Boolean = other is ValidRawJson && this.json == other.json
@@ -346,19 +346,19 @@ internal class ValidRawJson(
 /** [RawJson] implementation for when the JSON string given to [rawJson] is not valid. */
 internal class NotValidJson(
     @JvmField internal actual val value: String,
-) : RawJson, JsonSerializable {
+) : RawJson, JacksonSerializable {
   override fun toString() = value
 
-  override fun serialize(generator: JsonGenerator, serializers: SerializerProvider) {
+  override fun serialize(generator: JsonGenerator, context: SerializationContext) {
     generator.writeString(value)
   }
 
   override fun serializeWithType(
       generator: JsonGenerator,
-      serializers: SerializerProvider,
+      context: SerializationContext,
       typeSerializer: TypeSerializer,
   ) {
-    serialize(generator, serializers)
+    serialize(generator, context)
   }
 
   override fun equals(other: Any?): Boolean = other is NotValidJson && this.value == other.value

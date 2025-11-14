@@ -1,6 +1,5 @@
 package no.liflig.logging
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -23,6 +22,7 @@ import no.liflig.logging.testutils.Event
 import no.liflig.logging.testutils.EventType
 import no.liflig.logging.testutils.captureLogOutput
 import no.liflig.logging.testutils.runTestCases
+import tools.jackson.databind.ObjectMapper
 
 private val log = getLogger()
 

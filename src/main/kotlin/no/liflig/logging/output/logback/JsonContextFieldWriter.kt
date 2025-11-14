@@ -1,9 +1,9 @@
 package no.liflig.logging.output.logback
 
-import com.fasterxml.jackson.core.JsonGenerator
 import net.logstash.logback.composite.loggingevent.mdc.MdcEntryWriter
 import no.liflig.logging.LoggingContextState
 import no.liflig.logging.getLoggingContextState
+import tools.jackson.core.JsonGenerator
 
 /**
  * Writes logging context fields as JSON when using
@@ -41,7 +41,7 @@ public class JsonContextFieldWriter : MdcEntryWriter {
   ): Boolean {
     /** See [LoggingContextState]. */
     if (getLoggingContextState().isJsonField(mdcKey, value)) {
-      generator.writeFieldName(fieldName)
+      generator.writeName(fieldName)
       generator.writeRawValue(value)
       return true
     }

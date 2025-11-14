@@ -19,18 +19,18 @@
     <maven.deploy.skip>true</maven.deploy.skip>
     <root-path>${project.basedir}/..</root-path>
 
-    <logback.version>1.5.19</logback.version>
-    <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
+    <logback.version>1.5.21</logback.version>
+    <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
 
-    <jackson.version>2.20.0</jackson.version>
+    <jackson3.version>3.0.2</jackson3.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.fasterxml.jackson</groupId>
+        <groupId>tools.jackson</groupId>
         <artifactId>jackson-bom</artifactId>
-        <version>${jackson.version}</version>
+        <version>${jackson3.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

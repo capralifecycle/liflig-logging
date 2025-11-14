@@ -136,6 +136,6 @@ public final class no/liflig/logging/RawJson$Companion {
 
 public final class no/liflig/logging/output/logback/JsonContextFieldWriter : net/logstash/logback/composite/loggingevent/mdc/MdcEntryWriter {
 	public fun <init> ()V
-	public fun writeMdcEntry (Lcom/fasterxml/jackson/core/JsonGenerator;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public fun writeMdcEntry (Ltools/jackson/core/JsonGenerator;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
 }
 
