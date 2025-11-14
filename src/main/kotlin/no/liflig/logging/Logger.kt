@@ -446,17 +446,6 @@ internal constructor(
         TRACE = { underlyingLogger.isTraceEnabled() },
     )
   }
-
-  // TODO: Kept for backwards compatibility. Remove once users have migrated
-  @Suppress("unused")
-  @PublishedApi
-  internal inline fun log(
-      level: LogLevel,
-      cause: Throwable?,
-      crossinline buildLog: LogBuilder.() -> String,
-  ) {
-    this.at(level, cause, buildLog)
-  }
 }
 
 /**
@@ -597,12 +586,3 @@ internal fun normalizeLoggerName(name: String?): String {
  * is the [Logger] class.
  */
 internal const val LOGGER_CLASS_NAME = "no.liflig.logging.Logger"
-
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Deprecated(
-    "Replaced by zero-parameter getLogger() overload. You can search-and-replace 'getLogger {}' -> 'getLogger()' to update",
-)
-public fun getLogger(emptyLambdaToGetName: () -> Unit): Logger {
-  val name = normalizeLoggerName(emptyLambdaToGetName::class.qualifiedName)
-  return Logger(Slf4jLoggerFactory.getLogger(name))
-}

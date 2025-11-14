@@ -397,55 +397,7 @@ internal constructor(
     @Suppress("UNCHECKED_CAST")
     return contextFields as Array<LogField>
   }
-
-  // TODO: Kept for backwards compatibility. Remove once users have migrated
-  @Suppress("unused")
-  @PublishedApi
-  internal fun addFields(fields: Array<out LogField>): OverwrittenContextFields {
-    addFieldsToLoggingContext(fields)
-    return OverwrittenContextFields(null)
-  }
-
-  // TODO: Kept for backwards compatibility. Remove once users have migrated
-  @Suppress("unused")
-  @PublishedApi
-  internal fun removeFields(
-      fields: Array<out LogField>,
-      overwrittenFields: OverwrittenContextFields,
-  ) {
-    removeFieldsFromLoggingContext(fields)
-  }
-
-  internal companion object {
-    // TODO: Kept for backwards compatibility. Remove once users have migrated
-    @Suppress("unused") @PublishedApi @JvmField internal val INSTANCE = EMPTY_LOGGING_CONTEXT
-
-    // TODO: Kept for backwards compatibility. Remove once users have migrated
-    @Suppress("unused")
-    @PublishedApi
-    @JvmStatic
-    internal fun addFieldsStatic(fields: Array<out LogField>): OverwrittenContextFields {
-      addFieldsToLoggingContext(fields)
-      return OverwrittenContextFields(null)
-    }
-
-    // TODO: Kept for backwards compatibility. Remove once users have migrated
-    @Suppress("unused")
-    @PublishedApi
-    @JvmStatic
-    internal fun removeFieldsStatic(
-        fields: Array<out LogField>,
-        overwrittenFields: OverwrittenContextFields,
-    ) {
-      removeFieldsFromLoggingContext(fields)
-    }
-  }
 }
-
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Suppress("unused")
-@JvmInline
-internal value class OverwrittenContextFields(private val fields: Array<String?>?)
 
 @PublishedApi
 internal fun addFieldsToLoggingContext(fields: Array<out LogField>) {
@@ -507,10 +459,7 @@ private fun isDuplicateField(key: String, index: Int, fields: Array<out LogField
 
 @PublishedApi
 internal fun addExistingContextFieldsToLoggingContext(existingContext: LoggingContext) {
-  val existingContextMap = existingContext.map
-  if (existingContextMap == null) {
-    return
-  }
+  val existingContextMap = existingContext.map ?: return
   val existingContextSize = existingContextMap.size
 
   var currentState = getLoggingContextState()
@@ -535,10 +484,7 @@ internal fun addExistingContextFieldsToLoggingContext(existingContext: LoggingCo
 /** Like [removeFieldsFromLoggingContext], but for [addExistingContextFieldsToLoggingContext]. */
 @PublishedApi
 internal fun removeExistingContextFieldsFromLoggingContext(existingContext: LoggingContext) {
-  val existingContextMap = existingContext.map
-  if (existingContextMap == null) {
-    return
-  }
+  val existingContextMap = existingContext.map ?: return
 
   val currentContextState = getLoggingContextState()
 
@@ -632,14 +578,11 @@ internal fun overwriteDuplicateContextFieldsForLog(logFields: MutableList<KeyVal
   var contextState = getLoggingContextState()
 
   var removedFieldCount = 0
-  for (index in 0..(totalFieldCount - 1)) {
+  for (index in 0..<totalFieldCount) {
     val field = logFields[index - removedFieldCount]
     val key = field.key
 
-    val contextValue: String? = MDC.get(key)
-    if (contextValue == null) {
-      continue
-    }
+    val contextValue: String = MDC.get(key) ?: continue
 
     // We use `toString()` here, since the field value when using this library will either be a
     // `String` or a `RawJson` (whose `toString` returns the serialized JSON)
@@ -1122,7 +1065,8 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
     private val wrappedExecutor: ExecutorService,
 ) :
     // Use interface delegation here, so we only override the methods we're interested in.
-    ExecutorService by wrappedExecutor {
+    ExecutorService by wrappedExecutor,
+    AutoCloseable {
 
   private fun <T> wrapCallable(callable: Callable<T>): Callable<T> {
     // Copy context fields here, to get the logging context of the parent thread.
@@ -1191,40 +1135,15 @@ internal value class ExecutorServiceWithInheritedLoggingContext(
   ): T {
     return wrappedExecutor.invokeAny(tasks.map { wrapCallable(it) }, timeout, unit)
   }
-}
 
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Deprecated(
-    "Renamed to 'getCopyOfLoggingContext', and return type changed",
-    ReplaceWith(
-        "getCopyOfLoggingContext()",
-        imports = ["no.liflig.logging.getCopyOfLoggingContext"],
-    ),
-)
-public fun getLoggingContext(): List<LogField> {
-  return getCopyOfLoggingContext().getFields()?.toList() ?: emptyList()
-}
-
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Suppress("unused")
-@PublishedApi
-internal inline fun <ReturnT> withLoggingContextInternal(
-    logFields: Array<out LogField>,
-    block: () -> ReturnT,
-): ReturnT {
-  return withLoggingContext(logFields = logFields, block)
-}
-
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Suppress("unused")
-@PublishedApi
-internal inline fun <ReturnT> withLoggingContext(
-    logFields: List<LogField>,
-    block: () -> ReturnT,
-): ReturnT {
-  // Allows callers to use `block` as if it were in-place
-  contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
-
-  val logFields: Collection<LogField> = logFields
-  return withLoggingContext(logFields, block)
+  /**
+   * As of Java 19, [ExecutorService] implements [AutoCloseable] with a default method. Kotlin's
+   * interface delegation can't delegate to Java default methods, so we have to manually override it
+   * here. And since we want this library to be compatible with Java versions prior to 19 (for now),
+   * we manually implement `AutoCloseable` here and delegate to the wrapped executor if that
+   * implements `AutoCloseable`.
+   */
+  override fun close() {
+    (wrappedExecutor as? AutoCloseable)?.close()
+  }
 }

@@ -28,7 +28,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "exceptionField":"value"
+        "exceptionField":"value"
         """
             .trimIndent()
   }
@@ -47,7 +47,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "exceptionField":"value","contextField":"value"
+        "exceptionField":"value","contextField":"value"
         """
             .trimIndent()
     output.contextFields.shouldBeEmpty()
@@ -72,7 +72,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "exceptionField":"value"
+        "exceptionField":"value"
         """
             .trimIndent()
     output.contextFields shouldContainExactly mapOf("contextField" to "value")
@@ -101,7 +101,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "exceptionField":"value4","context2_key1":"value2","context2_key2":"value3","context1":"value1"
+        "exceptionField":"value4","context2_key1":"value2","context2_key2":"value3","context1":"value1"
         """
             .trimIndent()
     output.contextFields.shouldBeEmpty()
@@ -120,7 +120,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "childException":"value"
+        "childException":"value"
         """
             .trimIndent()
   }
@@ -136,7 +136,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "suppressedException":"value"
+        "suppressedException":"value"
         """
             .trimIndent()
   }
@@ -156,7 +156,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "parentField1":"value","parentField2":"value","childField":"value"
+        "parentField1":"value","parentField2":"value","childField":"value"
         """
             .trimIndent()
   }
@@ -178,7 +178,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "logEventField":"value","exceptionField":"value","contextField":"value"
+        "logEventField":"value","exceptionField":"value","contextField":"value"
         """
             .trimIndent()
   }
@@ -198,7 +198,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "duplicateKey":"value1"
+        "duplicateKey":"value1"
         """
             .trimIndent()
   }
@@ -218,7 +218,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "duplicateKey":"from log event"
+        "duplicateKey":"from log event"
         """
             .trimIndent()
   }
@@ -241,7 +241,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "duplicateKey":"from exception"
+        "duplicateKey":"from exception"
         """
             .trimIndent()
   }
@@ -260,7 +260,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "event":{"id":1000,"type":"ORDER_PLACED"}
+        "event":{"id":1000,"type":"ORDER_PLACED"}
         """
             .trimIndent()
   }
@@ -279,7 +279,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "key1":"value1","key2":"value2"
+        "key1":"value1","key2":"value2"
         """
             .trimIndent()
   }
@@ -296,7 +296,7 @@ internal class ExceptionWithLoggingContextTest {
 
     output.logFields shouldBe
         """
-          "key":"value"
+        "key":"value"
         """
             .trimIndent()
   }
@@ -496,7 +496,7 @@ internal class ExceptionWithLoggingContextTest {
     val output = captureLogOutput { log.error(exceptionWithLoggingContext) { "Test" } }
     output.logFields.shouldBe(
         """
-          "key1":"value1","key2":"value2"
+        "key1":"value1","key2":"value2"
         """
             .trimIndent(),
     )
@@ -519,7 +519,7 @@ internal class ExceptionWithLoggingContextTest {
     val output = captureLogOutput { log.error(exceptionWithLoggingContext) { "Test" } }
     output.logFields.shouldBe(
         """
-          "key1":"value1","key2":"value2"
+        "key1":"value1","key2":"value2"
         """
             .trimIndent(),
     )
@@ -536,7 +536,7 @@ internal class ExceptionWithLoggingContextTest {
     val output = captureLogOutput { log.error(exception) { "Test" } }
     output.logFields.shouldBe(
         """
-          "key1":"value1","key2":"value2"
+        "key1":"value1","key2":"value2"
         """
             .trimIndent(),
     )

@@ -160,7 +160,6 @@ internal class LoggerTest {
     /** We use a ListAppender from Logback here so we can inspect log events after logging. */
     val logAppender = ListAppender<ILoggingEvent>()
     val logbackLogger = Slf4jLoggerFactory.getLogger("LoggerTest") as LogbackLogger
-    val log = Logger(logbackLogger)
 
     init {
       logAppender.start()
@@ -176,7 +175,7 @@ internal class LoggerTest {
     const val FIELD_VALUE_1: String = "value1"
     const val FIELD_KEY_2: String = "key2"
     val FIELD_VALUE_2: Event = Event(id = 1000, type = EventType.ORDER_PLACED)
-    val CAUSE: Throwable? = Exception("Something went wrong")
+    val CAUSE: Throwable = Exception("Something went wrong")
   }
 
   @AfterTest

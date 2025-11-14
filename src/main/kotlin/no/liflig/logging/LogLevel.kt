@@ -19,12 +19,6 @@ package no.liflig.logging
  * ([Enum.name] and [Enum.ordinal]).
  */
 public class LogLevel private constructor() {
-  // TODO: Kept for backwards compatibility. Remove once users have migrated
-  @Suppress("unused")
-  @PublishedApi
-  internal val slf4jLevel: org.slf4j.event.Level
-    get() = this.toSlf4j()
-
   /** See [LogLevel]. */
   public companion object {
     /**

@@ -140,7 +140,7 @@ internal class LoggingContextTest {
     // has escaped its original context
     output.logFields shouldBe
         """
-          "key":"value"
+        "key":"value"
         """
             .trimIndent()
     output.contextFields.shouldBeEmpty()
@@ -173,7 +173,7 @@ internal class LoggingContextTest {
     // they have escaped their original context
     output.logFields shouldBe
         """
-          "level3":"value","level2_key1":"value","level2_key2":{"id":1,"type":"ORDER_UPDATED"}
+        "level3":"value","level2_key1":"value","level2_key2":{"id":1,"type":"ORDER_UPDATED"}
         """
             .trimIndent()
     // We expect the outermost logging context fields to still be in `contextFields`, because the
@@ -236,7 +236,7 @@ internal class LoggingContextTest {
 
     output1.logFields shouldBe
         """
-          "duplicateKey1":"log event value 1","duplicateKey2":"log event value 2"
+        "duplicateKey1":"log event value 1","duplicateKey2":"log event value 2"
         """
             .trimIndent()
     output1.contextFields.shouldBeEmpty()
@@ -289,7 +289,7 @@ internal class LoggingContextTest {
     // has escaped its original context
     exceptionLogOutput.logFields shouldBe
         """
-          "duplicateKey":"inner context value 1"
+        "duplicateKey":"inner context value 1"
         """
             .trimIndent()
     // The context fields should be empty, since the outer `duplicateKey` was overridden
@@ -453,7 +453,7 @@ internal class LoggingContextTest {
 
     exceptionLogOutput.logFields shouldBe
         """
-          "key1":"value1","key2":{"id":1,"type":"ORDER_PLACED"}
+        "key1":"value1","key2":{"id":1,"type":"ORDER_PLACED"}
         """
             .trimIndent()
     exceptionLogOutput.contextFields.shouldBeEmpty()
@@ -564,9 +564,9 @@ internal class LoggingContextTest {
     // to be included in the exception message
     loggingContextProvider.message shouldBe
         """
-          Fields from exception logging context:
-          		key1: value
-          		key2: {"id":1,"type":"ORDER_PLACED"}
+        Fields from exception logging context:
+        		key1: value
+        		key2: {"id":1,"type":"ORDER_PLACED"}
         """
             .trimIndent()
 

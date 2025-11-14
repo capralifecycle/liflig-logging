@@ -148,10 +148,7 @@ public open class ExceptionWithLoggingContext : RuntimeException {
    * The built message is stored in [_message], so we don't have to rebuild it.
    */
   private fun buildMessageFromCauseException(): String? {
-    val cause = this.cause
-    if (cause == null) {
-      return null
-    }
+    val cause = this.cause ?: return null
 
     val causeClass = cause::class.simpleName
     val causeMessage = cause.message
@@ -214,6 +211,7 @@ public open class ExceptionWithLoggingContext : RuntimeException {
     // use, since it uses optimized `System.arraycopy` on JVM).
     // We can safely cast from  `Array<out LogField>` to `Array<LogField>`, since `LogField` has no
     // subclasses, so this doesn't break covariance.
+    @Suppress("UNCHECKED_CAST")
     this.contextFields = (existingContextFields as Array<LogField>) + newContextFields
   }
 }
@@ -373,6 +371,7 @@ internal class LoggingContextProvider(
     // use, since it uses optimized `System.arraycopy` on JVM).
     // We can safely cast from `Array<out LogField>` to `Array<LogField>`, since `LogField` has no
     // subclasses, so this doesn't break covariance.
+    @Suppress("UNCHECKED_CAST")
     this.contextFields = (this.contextFields as Array<LogField>) + newContextFields
   }
 
@@ -381,6 +380,8 @@ internal class LoggingContextProvider(
     this.fieldsAddedToLog = true
   }
 
+  // We don't want to promise that this will always be non-nullable
+  @Suppress("RedundantNullableReturnType")
   override val message: String?
     get() = getLoggingContextProviderMessage(contextFields, fieldsAddedToLog)
 
@@ -597,57 +598,3 @@ internal fun getSuppressedExceptions(exception: Throwable): List<Throwable>? {
     return suppressedExceptions.asList()
   }
 }
-
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Deprecated(
-    "Renamed to 'ExceptionWithLoggingContext'",
-    ReplaceWith(
-        "ExceptionWithLoggingContext",
-        imports = ["no.liflig.logging.ExceptionWithLoggingContext"],
-    ),
-)
-@Suppress("DEPRECATION")
-public open class ExceptionWithLogFields(
-    override val message: String?,
-    final override val logFields: List<LogField> = emptyList(),
-    override val cause: Throwable? = null,
-) : RuntimeException(), HasLogFields {
-  public constructor(
-      message: String?,
-      vararg logFields: LogField,
-      cause: Throwable? = null,
-  ) : this(message, logFields.asList(), cause)
-
-  public constructor(
-      logFields: List<LogField> = emptyList(),
-      cause: Throwable? = null,
-  ) : this(message = cause?.message, logFields, cause)
-
-  public constructor(
-      vararg logFields: LogField,
-      cause: Throwable? = null,
-  ) : this(message = cause?.message, logFields.asList(), cause)
-}
-
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Deprecated(
-    "Renamed to 'HasLoggingContext'",
-    ReplaceWith(
-        "HasLoggingContext",
-        imports = ["no.liflig.logging.HasLoggingContext"],
-    ),
-)
-public interface HasLogFields : HasLoggingContext {
-  public override val logFields: List<LogField>
-}
-
-// TODO: Kept for backwards compatibility. Remove once users have migrated
-@Deprecated(
-    "Renamed to 'HasLoggingContext'",
-    ReplaceWith(
-        "HasLoggingContext",
-        imports = ["no.liflig.logging.HasLoggingContext"],
-    ),
-)
-@Suppress("DEPRECATION")
-public typealias WithLogFields = HasLogFields
