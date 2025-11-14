@@ -3,7 +3,7 @@
 Structured logging library for Kotlin, that aims to provide a developer-friendly API with minimal
 runtime overhead. Currently only supports the JVM platform, wrapping SLF4J.
 
-v2 of the library is a fork of
+v2+ of the library is a fork of
 [`hermannm/devlog-kotlin`](https://github.com/hermannm/devlog-kotlin)
 ([licensed under MIT](https://github.com/hermannm/devlog-kotlin/blob/main/LICENSE)),
 to make maintenance and distribution by Liflig easier.
