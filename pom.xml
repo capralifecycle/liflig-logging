@@ -252,7 +252,7 @@
               <file>./target/liflig-logging-${project.version}.jar</file>
               <groupId>${project.groupId}</groupId>
               <artifactId>${project.artifactId}</artifactId>
-              <version>${revision}</version>
+              <version>${major-version}.local-SNAPSHOT</version>
               <packaging>${project.packaging}</packaging>
               <localRepositoryPath>./integration-tests/local-maven-repo</localRepositoryPath>
             </configuration>
