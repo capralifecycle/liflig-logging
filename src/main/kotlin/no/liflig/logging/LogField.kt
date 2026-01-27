@@ -2,7 +2,6 @@ package no.liflig.logging
 
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationStrategy
@@ -376,9 +375,6 @@ internal object RawJsonSerializer : KSerializer<RawJson> {
   override val descriptor: SerialDescriptor
     get() = primitiveSerializer.descriptor
 
-  // `JsonUnquotedLiteral` is experimental, but will likely be stabilized as-is:
-  // https://github.com/Kotlin/kotlinx.serialization/issues/2900
-  @OptIn(ExperimentalSerializationApi::class)
   override fun serialize(encoder: Encoder, value: RawJson) {
     when (value) {
       is ValidRawJson -> {
