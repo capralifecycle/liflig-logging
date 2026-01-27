@@ -19,7 +19,7 @@ import kotlinx.serialization.json.JsonUnquotedLiteral
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
-import kotlinx.serialization.serializer
+import kotlinx.serialization.serializerOrNull
 import tools.jackson.core.JsonGenerator
 import tools.jackson.databind.JacksonSerializable
 import tools.jackson.databind.SerializationContext
@@ -133,12 +133,17 @@ internal fun createLogFieldOfType(
     fieldValueShouldUseToString(value) -> {
       LogField(key, value.toString(), isJson = false)
     }
-    // Try to serialize with kotlinx.serialization - if it throws an exception, the `field` function
-    // will catch it and fall back to `createStringLogField`
     else -> {
-      val serializer = LOG_FIELD_JSON_FORMAT.serializersModule.serializer(valueType)
-      val serializedValue = LOG_FIELD_JSON_FORMAT.encodeToString(serializer, value)
-      LogField(key, serializedValue, isJson = true)
+      val serializer = LOG_FIELD_JSON_FORMAT.serializersModule.serializerOrNull(valueType)
+      if (serializer != null) {
+        // Try to serialize with kotlinx.serialization - if it throws an exception, the `field`
+        // function will catch it and fall back to `createStringLogField`
+        val serializedValue = LOG_FIELD_JSON_FORMAT.encodeToString(serializer, value)
+        LogField(key, serializedValue, isJson = true)
+      } else {
+        // If type is not serializable: Fall back to `toString()`
+        LogField(key, value.toString(), isJson = false)
+      }
     }
   }
 }
