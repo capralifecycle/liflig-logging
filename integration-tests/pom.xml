@@ -39,10 +39,10 @@
     <slf4j.version>2.0.17</slf4j.version>
 
     <!-- Serialization -->
-    <kotlinx-serialization.version>1.9.0</kotlinx-serialization.version>
+    <kotlinx-serialization.version>1.10.0</kotlinx-serialization.version>
 
     <!-- Testing -->
-    <kotest.version>6.0.7</kotest.version>
+    <kotest.version>6.1.1</kotest.version>
 
     <!-- Maven plugins -->
     <required-maven-version>3.6.3</required-maven-version>

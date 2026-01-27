@@ -19,10 +19,10 @@
     <maven.deploy.skip>true</maven.deploy.skip>
     <root-path>${project.basedir}/..</root-path>
 
-    <logback.version>1.5.22</logback.version>
+    <logback.version>1.5.26</logback.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
 
-    <jackson3.version>3.0.3</jackson3.version>
+    <jackson3.version>3.0.4</jackson3.version>
   </properties>
 
   <dependencyManagement>
