@@ -28,6 +28,7 @@ public final class no/liflig/logging/LogBuilder {
 	public fun equals (Ljava/lang/Object;)Z
 	public static fun equals-impl (Lno/liflig/logging/LogEvent;Ljava/lang/Object;)Z
 	public static final fun equals-impl0 (Lno/liflig/logging/LogEvent;Lno/liflig/logging/LogEvent;)Z
+	public static final fun field-CYXq0Fk (Lno/liflig/logging/LogEvent;Ljava/lang/String;Lno/liflig/logging/LogEvent;)V
 	public static final fun field-impl (Lno/liflig/logging/LogEvent;Ljava/lang/String;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;)V
 	public fun hashCode ()I
 	public static fun hashCode-impl (Lno/liflig/logging/LogEvent;)I
