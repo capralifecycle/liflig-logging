@@ -370,15 +370,14 @@ internal constructor(
    * scope, which may cause you to accidentally pass the `LogBuilder` as the log field value when
    * using `this`. That compiles fine, since the normal [LogBuilder.field] method takes a generic,
    * which happily accepts `LogBuilder` as the field value. We can save you from this footgun by
-   * adding this more specific overload, with a [RequiresOptIn] annotation, to give a compilation
-   * error if you try to pass `LogBuilder` as the log field value.
+   * adding this more specific overload, and mark it as deprecated to give a compilation error if
+   * you try to pass `LogBuilder` as the log field value.
    */
-  @InvalidOverload public fun field(key: String, value: LogBuilder) {}
-
-  @RequiresOptIn(
-      "You are using 'this' as a log field value, but in this scope, 'this' refers to the lambda receiver LogBuilder. You probably meant to use 'this' from an outer scope, which you can do with 'this@<class_or_function_name>'."
+  @Deprecated(
+      "You are using 'this' as a log field value, but in this scope, 'this' refers to the lambda receiver LogBuilder. You probably meant to use 'this' from an outer scope, which you can do with 'this@<class_or_function_name>'.",
+      level = DeprecationLevel.ERROR,
   )
-  private annotation class InvalidOverload
+  public fun field(key: String, value: LogBuilder) {}
 }
 
 @PublishedApi
