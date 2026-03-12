@@ -255,6 +255,47 @@ internal class LoggingContextTest {
         )
   }
 
+  /**
+   * Tests the special-case optimization inside [overwriteDuplicateContextFieldsForLog] (see the
+   * docstring inside the for loop of that function).
+   */
+  @Test
+  fun `context fields are preserved in case of duplicate log event fields with the same value`() {
+    val output =
+        withLoggingContext(
+            // Test both a String value and a JSON value
+            field("duplicateKey1", "duplicate value 1"),
+            field("duplicateKey2", Event(id = 1, type = EventType.ORDER_PLACED)),
+            // Include 1 field with different value, so we can verify that still works as expected
+            field("duplicateKey3", "context value"),
+        ) {
+          captureLogOutput {
+            log.info {
+              // Same keys and values as the logging context
+              field("duplicateKey1", "duplicate value 1")
+              field("duplicateKey2", Event(id = 1, type = EventType.ORDER_PLACED))
+              // Same key, different value
+              field("duplicateKey3", "log event value")
+              "Test"
+            }
+          }
+        }
+
+    output.contextFields shouldContainExactly
+        mapOf(
+            "duplicateKey1" to "duplicate value 1",
+            "duplicateKey2" to
+                JsonObject(
+                    mapOf("id" to JsonPrimitive(1), "type" to JsonPrimitive("ORDER_PLACED"))
+                ),
+        )
+    output.logFields shouldBe
+        """
+        "duplicateKey3":"log event value"
+        """
+            .trimIndent()
+  }
+
   @Test
   fun `exception context field overrides outer context field`() {
     val exceptionLogOutput: LogOutput

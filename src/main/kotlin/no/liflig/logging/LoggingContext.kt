@@ -578,17 +578,25 @@ internal fun overwriteDuplicateContextFieldsForLog(logFields: MutableList<KeyVal
   var contextState = getLoggingContextState()
 
   var removedFieldCount = 0
-  for (index in 0..<totalFieldCount) {
-    val field = logFields[index - removedFieldCount]
+  for (originalIndex in 0..<totalFieldCount) {
+    // We may remove log fields as we iterate, so we have to adjust the index for that
+    val currentIndex = originalIndex - removedFieldCount
+    val field = logFields[currentIndex]
     val key = field.key
 
     val contextValue: String = MDC.get(key) ?: continue
 
-    // We use `toString()` here, since the field value when using this library will either be a
-    // `String` or a `RawJson` (whose `toString` returns the serialized JSON)
-    val fieldValue = field.value.toString()
-    if (fieldValue == contextValue) {
-      logFields.removeAt(index)
+    /**
+     * Special-case optimization: If the log field value and context value are the same, then we
+     * drop the log field instead of the context field. This is because removing from MDC and
+     * storing in the logging context state is more expensive (may involve allocation), whereas
+     * removing from our mutable list of log fields is cheaper.
+     *
+     * We use `toString()` for the log field value, since the field value when using this library
+     * will either be a `String` or a `RawJson` (whose `toString` returns the serialized JSON).
+     */
+    if (field.value.toString() == contextValue) {
+      logFields.removeAt(currentIndex)
       removedFieldCount++
     } else {
       MDC.remove(key)
