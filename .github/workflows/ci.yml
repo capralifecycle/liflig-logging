@@ -24,7 +24,7 @@ jobs:
           java-version: "21.0.8"
           java-package: "jdk"
 
-      - uses: capralifecycle/actions-lib/check-runtime-dependencies@47562e75012b60f0fa5a40bf18d12ede746660d8 # v1.7.0
+      - uses: capralifecycle/actions-lib/check-runtime-dependencies@720c52304c0cbc65a26c18f55a8f182cc0d33d84 # v1.7.1
 
       - name: cache mvn
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -46,7 +46,7 @@ jobs:
           }
           echo "major-version=$major_version" >> "$GITHUB_OUTPUT"
 
-      - uses: capralifecycle/actions-lib/generate-tag@47562e75012b60f0fa5a40bf18d12ede746660d8 # v1.7.0
+      - uses: capralifecycle/actions-lib/generate-tag@720c52304c0cbc65a26c18f55a8f182cc0d33d84 # v1.7.1
         id: tag
         with:
           tag-prefix: "${{ steps.prep.outputs.major-version }}"

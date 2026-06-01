@@ -7,7 +7,7 @@
   <parent>
     <groupId>no.liflig</groupId>
     <artifactId>kotlin-parent</artifactId>
-    <version>3.20260311.194334</version>
+    <version>3.20260518.023024</version>
     <!-- Empty relativePath to not resolve locally https://stackoverflow.com/a/6006098 -->
     <relativePath/>
   </parent>
@@ -31,18 +31,18 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-    <kotlin.version>2.3.20</kotlin.version>
+    <kotlin.version>2.3.21</kotlin.version>
     <java.version>11</java.version>
 
     <!-- Logging -->
     <liflig-logging.version>3.local-SNAPSHOT</liflig-logging.version>
-    <slf4j.version>2.0.17</slf4j.version>
+    <slf4j.version>2.0.18</slf4j.version>
 
     <!-- Serialization -->
-    <kotlinx-serialization.version>1.10.0</kotlinx-serialization.version>
+    <kotlinx-serialization.version>1.11.0</kotlinx-serialization.version>
 
     <!-- Testing -->
-    <kotest.version>6.1.7</kotest.version>
+    <kotest.version>6.1.11</kotest.version>
 
     <!-- Maven plugins -->
     <required-maven-version>3.6.3</required-maven-version>
