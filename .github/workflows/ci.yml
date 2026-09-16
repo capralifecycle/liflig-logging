@@ -24,8 +24,6 @@ jobs:
           java-version: "21.0.8"
           java-package: "jdk"
 
-      - uses: capralifecycle/actions-lib/check-runtime-dependencies@732d8e48e954621214a319b41b0e296ef252d2cc # v1.10.0
-
       - name: cache mvn
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
