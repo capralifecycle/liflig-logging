@@ -7,7 +7,7 @@
   <parent>
     <groupId>no.liflig</groupId>
     <artifactId>kotlin-parent</artifactId>
-    <version>3.20260718.024935</version>
+    <version>3.20261012.071604</version>
   </parent>
 
   <!--suppress MavenRedundantGroupId -->
@@ -46,21 +46,21 @@
     <java.version>11</java.version>
 
     <!-- Logging -->
-    <slf4j.version>2.0.18</slf4j.version>
-    <logback.version>1.5.38</logback.version>
+    <slf4j.version>2.0.20</slf4j.version>
+    <logback.version>1.6.5</logback.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
 
     <!-- Serialization -->
     <kotlinx-serialization.version>1.11.0</kotlinx-serialization.version>
-    <jackson3.version>3.1.5</jackson3.version>
+    <jackson3.version>3.2.3</jackson3.version>
 
     <!-- Testing -->
-    <kotest.version>6.2.2</kotest.version>
+    <kotest.version>6.2.5</kotest.version>
 
     <!-- Maven plugins -->
     <maven-dependency-plugin.version>3.11.0</maven-dependency-plugin.version>
-    <exec-maven-plugin.version>3.6.3</exec-maven-plugin.version>
-    <flatten-maven-plugin.version>1.7.3</flatten-maven-plugin.version>
+    <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
+    <flatten-maven-plugin.version>1.8.0</flatten-maven-plugin.version>
     <!-- Check for newer versions here: https://gitlab.com/chromaway/core-tools/kotlin-bcv-maven-plugin/-/tags -->
     <binary-compatibility-validator.version>0.2.1</binary-compatibility-validator.version>
   </properties>
@@ -250,6 +250,8 @@
             </goals>
             <configuration>
               <file>./target/liflig-logging-${project.version}.jar</file>
+              <!-- See https://github.com/apache/maven-install-plugin/pull/447 -->
+              <pomFile>./pom.xml</pomFile>
               <groupId>${project.groupId}</groupId>
               <artifactId>${project.artifactId}</artifactId>
               <version>${major-version}.local-SNAPSHOT</version>
